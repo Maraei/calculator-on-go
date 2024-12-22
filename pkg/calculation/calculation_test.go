@@ -1,79 +1,109 @@
-package calculation_test
+package calculation
 
 import (
+	"errors"
 	"testing"
-
-	"github.com/Maraei/calculator-on-go/pkg/calculation"
 )
 
 func TestCalc(t *testing.T) {
-	testCasesSuccess := []struct {
+	testCases := []struct {
 		name           string
 		expression     string
 		expectedResult float64
+		err            error
 	}{
 		{
-			name:           "simple",
+			name:           "обычный случай",
 			expression:     "1+1",
 			expectedResult: 2,
+			err:            nil,
 		},
 		{
-			name:           "priority",
-			expression:     "(2+2)*2",
+			name:           "с возведением в степень",
+			expression:     "2^3",
 			expectedResult: 8,
+			err:            nil,
 		},
 		{
-			name:           "priority",
-			expression:     "2+2*2",
-			expectedResult: 6,
+			name:           "возведение в степень с отрицательным числом",
+			expression:     "-2^3",
+			expectedResult: -8,
+			err:            nil,
 		},
 		{
-			name:           "/",
-			expression:     "1/2",
-			expectedResult: 0.5,
+			name:           "смешанное выражение с возведением в степень",
+			expression:     "2+2^3",
+			expectedResult: 10,
+			err:            nil,
+		},
+		{
+			name:           "возведение в степень с дробным числом",
+			expression:     "4^0.5",
+			expectedResult: 2,
+			err:            nil,
+		},
+		{
+			name:           "деление на ноль",
+			expression:     "5/0",
+			expectedResult: 0,
+			err:            ErrDivisionByZero,
 		},
 	}
 
-	for _, testCase := range testCasesSuccess {
+	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			val, err := calculation.Calc(testCase.expression)
-			if err != nil {
-				t.Fatalf("successful case %s returns error", testCase.expression)
+			result, err := Calc(testCase.expression)
+			if err != nil && !errors.Is(err, testCase.err) {
+				t.Fatalf("expected error %v, got %v", testCase.err, err)
 			}
-			if val != testCase.expectedResult {
-				t.Fatalf("%f should be equal %f", val, testCase.expectedResult)
+
+			if err == nil && result != testCase.expectedResult {
+				t.Fatalf("expected result %f, got %f", testCase.expectedResult, result)
 			}
 		})
 	}
+}
 
-	testCasesFail := []struct {
-		name        string
-		expression  string
+
+func TestCalcErrors(t *testing.T) {
+	testCases := []struct {
+		name       string
+		expression string
 		expectedErr error
 	}{
 		{
-			name:       "simple",
-			expression: "1+1*",
+			name:        "деление на ноль",
+			expression:  "10/0",
+			expectedErr: ErrDivisionByZero,
 		},
 		{
-			name:       "priority",
-			expression: "2+2**2",
+			name:        "неверный символ",
+			expression:  "not numbs",
+			expectedErr: ErrInvalidExpression,
 		},
 		{
-			name:       "priority",
-			expression: "((2+2-*(2",
+			name:        "неверные символы в выражении",
+			expression:  "2r+10b",
+			expectedErr: ErrInvalidExpression,
 		},
+
 		{
-			name:       "/",
-			expression: "",
+			name:        "пустое выражение",
+			expression:  "",
+			expectedErr: ErrEmptyInput,
 		},
 	}
 
-	for _, testCase := range testCasesFail {
+	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			val, err := calculation.Calc(testCase.expression)
+			_, err := Calc(testCase.expression)
 			if err == nil {
-				t.Fatalf("expression %s is invalid but result  %f was obtained", testCase.expression, val)
+				t.Fatalf("expected error for expression %s, but no error occurred", testCase.expression)
+			}
+
+			// Проверяем только тип ошибки
+			if !errors.Is(err, testCase.expectedErr) {
+				t.Fatalf("expected error %v, but got %v", testCase.expectedErr, err)
 			}
 		})
 	}

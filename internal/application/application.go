@@ -1,32 +1,25 @@
 package application
 
 import (
-	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 
-	package application
-
-import (
-	"bufio"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log"
-	"net/http"
-	"os"
-	"strings"
-
-	"github.com/maraei/calculator-on-go/pkg/calculation"
+	"github.com/Maraei/calculator-on-go/pkg/calculation"
 )
 
 type Config struct {
 	Addr string
+}
+
+// Метод для запуска HTTP-сервера
+func (a *Application) RunServer() error {
+	// Убедитесь, что здесь указан правильный адрес
+	log.Printf("Сервер запущен на порту %s", a.config.Addr)
+	return http.ListenAndServe(":"+a.config.Addr, nil)
 }
 
 func ConfigFromEnv() *Config {
@@ -48,242 +41,84 @@ func New() *Application {
 	}
 }
 
-// Функция запуска приложения
-// тут будем чиать введенную строку и после нажатия ENTER писать результат работы программы на экране
-// если пользователь ввел exit - то останаваливаем приложение
-func (a *Application) Run() error {
-	for {
-		// читаем выражение для вычисления из командной строки
-		log.Println("input expression")
-		reader := bufio.NewReader(os.Stdin)
-		text, err := reader.ReadString('\n')
-		if err != nil {
-			log.Println("failed to read expression from console")
-		}
-		// убираем пробелы, чтобы оставить только вычислемое выражение
-		text = strings.TrimSpace(text)
-		// выходим, если ввели команду "exit"
-		if text == "exit" {
-			log.Println("aplication was successfully closed")
-			return nil
-		}
-		//вычисляем выражение
-		result, err := calculation.Calc(text)
-		if err != nil {
-			log.Println(text, " calculation failed wit error: ", err)
-		} else {
-			log.Println(text, "=", result)
-		}
-	}
-}
-
-type Request struct {
-	Expression string `json:"expression"`
-}
-
 func CalcHandler(w http.ResponseWriter, r *http.Request) {
-	request := new(Request)
-	defer r.Body.Close()
-	err := json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	// Проверка метода запроса
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"Wrong Method"}`, http.StatusMethodNotAllowed)
 		return
 	}
 
-	result, err := calculation.Calc(request.Expression)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		if errors.Is(err, calculation.ErrInvalidExpression) {
-			fmt.Fprintf(w, "err: %s", err.Error())
-		} else {
-			fmt.Fprintf(w, "unknown err")
-		}
-
-	} else {
-		fmt.Fprintf(w, "result: %f", result)
+		http.Error(w, `{"error":"Invalid Body"}`, http.StatusBadRequest)
+		return
 	}
-}
-
-func (a *Application) RunServer() error {
-	http.HandleFunc("/", CalcHandler)
-	return http.ListenAndServe(":"+a.config.Addr, nil)
-}package application
-
-import (
-	"bufio"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log"
-	"net/http"
-	"os"
-	"strings"
-
-	"github.com/maraei/calculator-on-go/pkg/calculation"
-)
-
-type Config struct {
-	Addr string
-}
-
-func ConfigFromEnv() *Config {
-	config := new(Config)
-	config.Addr = os.Getenv("PORT")
-	if config.Addr == "" {
-		config.Addr = "8080"
-	}
-	return config
-}
-
-type Application struct {
-	config *Config
-}
-
-func New() *Application {
-	return &Application{
-		config: ConfigFromEnv(),
-	}
-}
-
-// Функция запуска приложения
-// тут будем чиать введенную строку и после нажатия ENTER писать результат работы программы на экране
-// если пользователь ввел exit - то останаваливаем приложение
-func (a *Application) Run() error {
-	for {
-		// читаем выражение для вычисления из командной строки
-		log.Println("input expression")
-		reader := bufio.NewReader(os.Stdin)
-		text, err := reader.ReadString('\n')
-		if err != nil {
-			log.Println("failed to read expression from console")
-		}
-		// убираем пробелы, чтобы оставить только вычислемое выражение
-		text = strings.TrimSpace(text)
-		// выходим, если ввели команду "exit"
-		if text == "exit" {
-			log.Println("aplication was successfully closed")
-			return nil
-		}
-		//вычисляем выражение
-		result, err := calculation.Calc(text)
-		if err != nil {
-			log.Println(text, " calculation failed wit error: ", err)
-		} else {
-			log.Println(text, "=", result)
-		}
-	}
-}
-
-type Request struct {
-	Expression string `json:"expression"`
-}
-
-func CalcHandler(w http.ResponseWriter, r *http.Request) {
-	request := new(Request)
 	defer r.Body.Close()
-	err := json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+
+	var request struct {
+		Expression string `json:"expression"`
+	}
+	err = json.Unmarshal(body, &request)
+	if err != nil || request.Expression == "" {
+		http.Error(w, `{"error":"Invalid Body"}`, http.StatusBadRequest)
 		return
 	}
 
+	// Выполнение вычислений
 	result, err := calculation.Calc(request.Expression)
 	if err != nil {
-		if errors.Is(err, calculation.ErrInvalidExpression) {
-			fmt.Fprintf(w, "err: %s", err.Error())
-		} else {
-			fmt.Fprintf(w, "unknown err")
+		var errorMsg string
+		statusCode := http.StatusUnprocessableEntity
+
+		// Обработка ошибок
+		switch err {
+		case calculation.ErrInvalidExpression:
+			errorMsg = "Error calculation"
+		case calculation.ErrDivisionByZero:
+			errorMsg = "Division by zero"
+		case calculation.ErrMismatchedParentheses:
+			errorMsg = "Mismatched parentheses"
+		case calculation.ErrInvalidNumber:
+			errorMsg = "Invalid number"
+		case calculation.ErrUnexpectedToken:
+			errorMsg = "Unexpected token"
+		case calculation.ErrNotEnoughValues:
+			errorMsg = "Not enough values in expression"
+		case calculation.ErrInvalidOperator:
+			errorMsg = "Invalid operator"
+		case calculation.ErrOperatorAtEnd:
+			errorMsg = "Operator at the end"
+		case calculation.ErrMultipleDecimalPoints:
+			errorMsg = "Multiple decimal points"
+		case calculation.ErrEmptyInput:
+			errorMsg = "Empty expression"
+		default:
+			errorMsg = "Error calculation"
+			statusCode = http.StatusUnprocessableEntity
 		}
 
-	} else {
-		fmt.Fprintf(w, "result: %f", result)
-	}
-}
-
-func (a *Application) RunServer() error {
-	http.HandleFunc("/", CalcHandler)
-	return http.ListenAndServe(":"+a.config.Addr, nil)
-}
-)
-
-type Config struct {
-	Addr string
-}
-
-func ConfigFromEnv() *Config {
-	config := new(Config)
-	config.Addr = os.Getenv("PORT")
-	if config.Addr == "" {
-		config.Addr = "8080"
-	}
-	return config
-}
-
-type Application struct {
-	config *Config
-}
-
-func New() *Application {
-	return &Application{
-		config: ConfigFromEnv(),
-	}
-}
-
-// Функция запуска приложения
-// тут будем чиать введенную строку и после нажатия ENTER писать результат работы программы на экране
-// если пользователь ввел exit - то останаваливаем приложение
-func (a *Application) Run() error {
-	for {
-		// читаем выражение для вычисления из командной строки
-		log.Println("input expression")
-		reader := bufio.NewReader(os.Stdin)
-		text, err := reader.ReadString('\n')
-		if err != nil {
-			log.Println("failed to read expression from console")
-		}
-		// убираем пробелы, чтобы оставить только вычислемое выражение
-		text = strings.TrimSpace(text)
-		// выходим, если ввели команду "exit"
-		if text == "exit" {
-			log.Println("aplication was successfully closed")
-			return nil
-		}
-		//вычисляем выражение
-		result, err := calculation.Calc(text)
-		if err != nil {
-			log.Println(text, " calculation failed wit error: ", err)
-		} else {
-			log.Println(text, "=", result)
-		}
-	}
-}
-
-type Request struct {
-	Expression string `json:"expression"`
-}
-
-func CalcHandler(w http.ResponseWriter, r *http.Request) {
-	request := new(Request)
-	defer r.Body.Close()
-	err := json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, errorMsg), statusCode)
 		return
 	}
 
-	result, err := calculation.Calc(request.Expression)
-	if err != nil {
-		if errors.Is(err, calculation.ErrInvalidExpression) {
-			fmt.Fprintf(w, "err: %s", err.Error())
-		} else {
-			fmt.Fprintf(w, "unknown err")
-		}
-
-	} else {
-		fmt.Fprintf(w, "result: %f", result)
+	// Формирование успешного ответа
+	response := struct {
+		Result string `json:"result"`
+	}{
+		Result: fmt.Sprintf("%v", result),
 	}
-}
 
-func (a *Application) RunServer() error {
-	http.HandleFunc("/", CalcHandler)
-	return http.ListenAndServe(":"+a.config.Addr, nil)
+	responseJson, err := json.Marshal(response)
+	if err != nil {
+		log.Printf("Error marshaling response: %v", err)
+		http.Error(w, `{"error":"Unknown error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(responseJson)
+	if err != nil {
+		log.Printf("Error writing response: %v", err)
+	}
 }
