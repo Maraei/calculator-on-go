@@ -6,40 +6,9 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/Maraei/calculator-on-go/pkg/calculation"
 )
-
-type Config struct {
-	Addr string
-}
-
-// Метод для запуска HTTP-сервера
-func (a *Application) RunServer() error {
-	// Убедитесь, что здесь указан правильный адрес
-	log.Printf("Сервер запущен на порту %s", a.config.Addr)
-	return http.ListenAndServe(":"+a.config.Addr, nil)
-}
-
-func ConfigFromEnv() *Config {
-	config := new(Config)
-	config.Addr = os.Getenv("PORT")
-	if config.Addr == "" {
-		config.Addr = "8080"
-	}
-	return config
-}
-
-type Application struct {
-	config *Config
-}
-
-func New() *Application {
-	return &Application{
-		config: ConfigFromEnv(),
-	}
-}
 
 func CalcHandler(w http.ResponseWriter, r *http.Request) {
 	// Проверка метода запроса
