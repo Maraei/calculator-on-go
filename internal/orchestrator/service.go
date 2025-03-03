@@ -18,7 +18,9 @@ type Task struct {
 	Arg2          float64 `json:"arg2"`
 	Operation     string  `json:"operation"`
 	OperationTime int     `json:"operation_time"`
+	Result        float64 `json:"result,omitempty"`
 }
+
 
 type Service struct {
 	mu          sync.Mutex

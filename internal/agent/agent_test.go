@@ -1,8 +1,9 @@
+// internal/agent/agents_test.go
 package agent
 
 import (
-	"os"
 	"testing"
+	"os"
 )
 
 // Тест функции Calculate
@@ -35,18 +36,23 @@ func TestCalculate(t *testing.T) {
 	}
 }
 
-// Тест функции getOperationTime
 func TestGetOperationTime(t *testing.T) {
 	os.Setenv("TIME_ADDITION_MS", "3000")
 	defer os.Unsetenv("TIME_ADDITION_MS")
 
 	time1 := getOperationTime("TIME_ADDITION_MS", 2000)
 	if time1 != 3000 {
-		t.Errorf("ожидали 3000, но получили %v", time1)
+		t.Errorf("Ожидали 3000, но получили %v", time1)
 	}
 
 	time2 := getOperationTime("UNKNOWN_ENV", 4000)
 	if time2 != 4000 {
-		t.Errorf("ожидали 4000, но получили %v", time2)
+		t.Errorf("Ожидали 4000, но получили %v", time2)
+	}
+
+	// Дополнительная проверка на пустую переменную окружения
+	time3 := getOperationTime("", 5000)
+	if time3 != 5000 {
+		t.Errorf("Ожидали 5000, но получили %v", time3)
 	}
 }
