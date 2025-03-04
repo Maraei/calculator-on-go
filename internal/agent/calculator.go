@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"fmt"
 )
 
 // Выполняет операцию в зависимости от типа
@@ -29,19 +30,20 @@ func Calculate(arg1, arg2 float64, operation string) (float64, error) {
 
 	// Выполнение самой операции
 	switch operation {
-	case "+":
-		return arg1 + arg2, nil
-	case "-":
-		return arg1 - arg2, nil
-	case "*":
-		return arg1 * arg2, nil
-	case "/":
-		if arg2 == 0 {
-			return 0, errors.New("деление на ноль")
-		}
-		return arg1 / arg2, nil
-	}
-	return 0, errors.New("неизвестная операция: " + operation)
+    case "+":
+        return arg1 + arg2, nil
+    case "-":
+        return arg1 - arg2, nil
+    case "*":
+        return arg1 * arg2, nil
+    case "/":
+        if arg2 == 0 {
+            return 0, fmt.Errorf("деление на ноль")
+        }
+        return arg1 / arg2, nil
+    default:
+        return 0, fmt.Errorf("неизвестная операция: %s", operation)
+    }
 }
 
 // Получение времени выполнения операции из переменных окружения

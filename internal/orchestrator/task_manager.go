@@ -1,41 +1,54 @@
 package orchestrator
 
 import (
-	"fmt"
 	"log"
 	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"errors"
 )
 
 type TaskManager struct {
 	mu      sync.Mutex
 	tasks   map[string]*Task
-	results map[string]float64
+	results map[string]TaskResult
+}
+
+type TaskResult struct {
+	Result float64 `json:"result,omitempty"`
+	Error  string  `json:"error,omitempty"`
 }
 
 func NewTaskManager() *TaskManager {
 	return &TaskManager{
 		tasks:   make(map[string]*Task),
-		results: make(map[string]float64),
+		results: make(map[string]TaskResult),
 	}
 }
 
-// Генерация задач из выражения с параллельным вычислением
-func (tm *TaskManager) GenerateTasks(expressionID, expression string) {
+// Генерация задач из выражения
+func (tm *TaskManager) GenerateTasks(expressionID, expression string) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
+	// Валидация выражения
+	if err := validateExpression(expression); err != nil {
+		return err
+	}
+
+	// Остальная логика генерации задач...
 	re := regexp.MustCompile(`(\d+(\.\d+)?|\+|\-|\*|\/)`)
 	tokens := re.FindAllString(expression, -1)
 	log.Printf("Токены после разбиения регэкспом: %+v", tokens)
 
-	var wg sync.WaitGroup
-	results := make(chan *Task, 1) // Оставляем буфер на 1 задачу
+	// Если токенов недостаточно для создания задачи
+	if len(tokens) < 3 {
+		return errors.New("недостаточно токенов для создания задачи")
+	}
 
-	// В цикле будем создавать задачу только для первого оператора.
+	// Генерация задач...
 	for i := 1; i < len(tokens)-1; i += 2 {
 		arg1, err1 := strconv.ParseFloat(tokens[i-1], 64)
 		arg2, err2 := strconv.ParseFloat(tokens[i+1], 64)
@@ -43,68 +56,20 @@ func (tm *TaskManager) GenerateTasks(expressionID, expression string) {
 
 		if err1 != nil || err2 != nil {
 			log.Printf("Ошибка парсинга аргументов: %v, %v", err1, err2)
-			continue
+			return errors.New("неверный формат чисел в выражении")
 		}
 
-		// Используем переданный expressionID без добавления суффиксов
 		taskID := expressionID
-
-		wg.Add(1)
-		go func(taskID string, arg1, arg2 float64, operation string) {
-			defer wg.Done()
-
-			result, err := performCalculation(arg1, arg2, operation)
-			if err != nil {
-				log.Printf("Ошибка выполнения задачи %s: %v", taskID, err)
-				return
-			}
-
-			task := &Task{
-				ID:            taskID, // Используем именно expressionID
-				Arg1:          arg1,
-				Arg2:          arg2,
-				Operation:     operation,
-				OperationTime: rand.Intn(3000) + 1000,
-				Result:        result,
-			}
-
-			results <- task
-		}(taskID, arg1, arg2, operation)
-
-		// Если задача успешно создана для первого оператора, выходим из цикла
-		break
-	}
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	// Сохраняем полученную задачу в мапу задач
-	for task := range results {
-		tm.tasks[task.ID] = task
-		log.Printf("Добавлена задача: %s (%f %s %f) = %f", task.ID, task.Arg1, task.Operation, task.Arg2, task.Result)
-	}
-}
-
-
-// Выполнение вычислений для одного задания
-func performCalculation(arg1, arg2 float64, operation string) (float64, error) {
-	switch operation {
-	case "+":
-		return arg1 + arg2, nil
-	case "-":
-		return arg1 - arg2, nil
-	case "*":
-		return arg1 * arg2, nil
-	case "/":
-		if arg2 == 0 {
-			return 0, fmt.Errorf("деление на ноль")
+		tm.tasks[taskID] = &Task{
+			ID:            taskID,
+			Arg1:          arg1,
+			Arg2:          arg2,
+			Operation:     operation,
+			OperationTime: rand.Intn(3000) + 1000,
 		}
-		return arg1 / arg2, nil
-	default:
-		return 0, fmt.Errorf("неизвестная операция: %s", operation)
 	}
+
+	return nil
 }
 
 // Получение следующей задачи
@@ -112,43 +77,86 @@ func (tm *TaskManager) GetNextTask() (*Task, bool) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
-	log.Println("Все текущие задачи:", tm.tasks)
-
 	for id, task := range tm.tasks {
-		log.Println("Выдаётся задача:", id)
 		delete(tm.tasks, id)
 		return task, true
 	}
 	return nil, false
 }
 
-// Завершение задачи
+// Завершение задачи с результатом
 func (tm *TaskManager) CompleteTask(taskID string, result float64) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
-	tm.results[taskID] = result
+	tm.results[taskID] = TaskResult{Result: result}
+	return nil
+}
+
+// Завершение задачи с ошибкой
+func (tm *TaskManager) CompleteTaskWithError(taskID string, errorMsg string) error {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	tm.results[taskID] = TaskResult{Error: errorMsg}
 	return nil
 }
 
 // Проверка завершения выражения
-func (tm *TaskManager) CheckExpressionCompletion(taskID string) (string, bool, float64) {
+func (tm *TaskManager) CheckExpressionCompletion(taskID string) (string, bool, float64, bool) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
 	exprID := strings.Split(taskID, "_")[0]
-
-	for id := range tm.tasks {
-		if strings.HasPrefix(id, exprID) {
-			return "", false, 0
-		}
-	}
-
+	hasError := false
 	var finalResult float64
+
+	// Проверяем результаты задач
 	for id, res := range tm.results {
 		if strings.HasPrefix(id, exprID) {
-			finalResult += res
+			if res.Error != "" {
+				hasError = true
+				break
+			}
+			finalResult += res.Result
 		}
 	}
-	return exprID, true, finalResult
+
+	// Если есть ошибка, возвращаем true и флаг ошибки
+	if hasError {
+		return exprID, true, 0, true
+	}
+
+	// Проверяем, остались ли невыполненные задачи
+	for id := range tm.tasks {
+		if strings.HasPrefix(id, exprID) {
+			return "", false, 0, false
+		}
+	}
+
+	// Если все задачи выполнены и нет ошибок, возвращаем финальный результат
+	return exprID, true, finalResult, false
+}
+
+
+
+func validateExpression(expression string) error {
+	// Регулярное выражение для проверки допустимых символов
+	validChars := regexp.MustCompile(`^[\d\s\+\-\*\/\.]+$`)
+	if !validChars.MatchString(expression) {
+		return errors.New("выражение содержит недопустимые символы")
+	}
+
+	// Проверка на пустое выражение
+	if len(strings.TrimSpace(expression)) == 0 {
+		return errors.New("выражение пустое")
+	}
+
+	// Проверка на наличие хотя бы одного оператора
+	hasOperator := regexp.MustCompile(`[\+\-\*\/]`).MatchString(expression)
+	if !hasOperator {
+		return errors.New("выражение не содержит операторов")
+	}
+
+	return nil
 }

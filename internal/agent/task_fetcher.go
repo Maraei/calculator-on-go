@@ -30,8 +30,8 @@ func Start(workerCount int) {
 func worker(id int) {
 	serverURL := os.Getenv("ORCHESTRATOR_URL")
 	if serverURL == "" {
-    	serverURL = "http://localhost"
-    	log.Println("ORCHESTRATOR_URL не задан, используется значение по умолчанию:", serverURL)
+		serverURL = "http://localhost"
+		log.Println("ORCHESTRATOR_URL не задан, используется значение по умолчанию:", serverURL)
 	}
 	taskEndpoint := serverURL + "/internal/task"
 	
@@ -43,7 +43,7 @@ func worker(id int) {
 			continue
 		}
 
-		// Проверяем, что задача не nil
+		// Если задачи нет, ждем
 		if task == nil {
 			log.Printf("[Worker %d] Нет новых задач, ждем...", id)
 			time.Sleep(2 * time.Second)
@@ -55,12 +55,17 @@ func worker(id int) {
 		// Выполняем вычисление
 		result, err := Calculate(task.Arg1, task.Arg2, task.Operation)
 		if err != nil {
-			log.Printf("[Worker %d] Ошибка вычисления: %v", id, err)
+			// Отправляем ошибку обратно оркестратору
+			if err := sendResult(taskEndpoint, task.ID, 0, err.Error()); err != nil {
+				log.Printf("[Worker %d] Ошибка отправки ошибки: %v", id, err)
+			} else {
+				log.Printf("[Worker %d] Ошибка вычисления: %v", id, err)
+			}
 			continue
 		}
 
 		// Отправляем результат обратно оркестратору
-		if err := sendResult(taskEndpoint, task.ID, result); err != nil {
+		if err := sendResult(taskEndpoint, task.ID, result, ""); err != nil {
 			log.Printf("[Worker %d] Ошибка отправки результата: %v", id, err)
 		} else {
 			log.Printf("[Worker %d] Успешно отправлен результат: %v", id, result)
@@ -83,7 +88,7 @@ func fetchTask(url string) (*Task, error) {
 
 	// Если ответ не OK, то возвращаем ошибку
 	if resp.StatusCode != http.StatusOK {
-	    return nil, errors.New("не удалось получить задачу: статус " + resp.Status)
+		return nil, errors.New("не удалось получить задачу: статус " + resp.Status)
 	}
 
 	var response struct {
@@ -95,32 +100,24 @@ func fetchTask(url string) (*Task, error) {
 	return &response.Task, nil
 }
 
-// sendResult отправляет результат вычисления обратно оркестратору
-func sendResult(url, taskID string, result float64) error {
-	payload, _ := json.Marshal(map[string]interface{}{
-		"id":     taskID,
-		"result": result,
-	})
+// sendResult отправляет результат или ошибку оркестратору
+func sendResult(url, taskID string, result float64, errMsg string) error {
+	payload := make(map[string]interface{})
+	payload["id"] = taskID
+	if errMsg != "" {
+		payload["error"] = errMsg
+	} else {
+		payload["result"] = result
+	}
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
+	jsonPayload, _ := json.Marshal(payload)
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		// Проверяем, что тело ответа не пустое
-		if resp.Body != nil && resp.ContentLength > 0 {
-			body := new(bytes.Buffer)
-			_, readErr := body.ReadFrom(resp.Body)
-			if readErr == nil {
-				log.Printf("Ошибка при отправке результата: %s", body.String())
-			} else {
-				log.Printf("Ошибка при отправке результата, не удалось прочитать тело ответа: %v", readErr)
-			}
-		} else {
-			log.Println("Ошибка при отправке результата: пустое тело ответа")
-		}
 		return errors.New("не удалось отправить результат: статус " + resp.Status)
 	}
 	return nil

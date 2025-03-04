@@ -35,7 +35,7 @@ func (h *Handler) AddExpression(w http.ResponseWriter, r *http.Request) {
 
 	id, err := h.Service.AddExpression(req.Expression)
 	if err != nil {
-		http.Error(w, "Failed to add expression", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -69,21 +69,28 @@ func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"task": task})
 }
 
-// Агент отправляет результат вычисления
 func (h *Handler) SubmitResult(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ID     string  `json:"id"`
-		Result float64 `json:"result"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request", http.StatusUnprocessableEntity)
-		return
-	}
+    var req struct {
+        ID     string  `json:"id"`
+        Result float64 `json:"result,omitempty"`
+        Error  string  `json:"error,omitempty"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request", http.StatusUnprocessableEntity)
+        return
+    }
 
-	if err := h.Service.SubmitTaskResult(req.ID, req.Result); err != nil {
-		http.Error(w, "Failed to submit result", http.StatusInternalServerError)
-		return
-	}
+    if req.Error != "" {
+        if err := h.Service.SubmitTaskError(req.ID, req.Error); err != nil {
+            http.Error(w, "Failed to submit error", http.StatusInternalServerError)
+            return
+        }
+    } else {
+        if err := h.Service.SubmitTaskResult(req.ID, req.Result); err != nil {
+            http.Error(w, "Failed to submit result", http.StatusInternalServerError)
+            return
+        }
+    }
 
-	w.WriteHeader(http.StatusOK)
+    w.WriteHeader(http.StatusOK)
 }

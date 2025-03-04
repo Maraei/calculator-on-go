@@ -7,9 +7,10 @@ import (
 )
 
 type Expression struct {
-	ID     string  `json:"id"`
-	Status string  `json:"status"`
+	ID     string   `json:"id"`
+	Status string   `json:"status"`
 	Result *float64 `json:"result,omitempty"`
+	Error  *string  `json:"error,omitempty"`
 }
 
 type Task struct {
@@ -20,7 +21,6 @@ type Task struct {
 	OperationTime int     `json:"operation_time"`
 	Result        float64 `json:"result,omitempty"`
 }
-
 
 type Service struct {
 	mu          sync.Mutex
@@ -40,10 +40,18 @@ func (s *Service) AddExpression(expression string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Валидация выражения
+	if err := s.taskManager.GenerateTasks("", expression); err != nil {
+		return "", err
+	}
+
 	id := uuid.New().String()
 	s.expressions[id] = &Expression{ID: id, Status: "pending"}
 
-	s.taskManager.GenerateTasks(id, expression)
+	// Генерация задач
+	if err := s.taskManager.GenerateTasks(id, expression); err != nil {
+		return "", err
+	}
 
 	return id, nil
 }
@@ -84,9 +92,35 @@ func (s *Service) SubmitTaskResult(id string, result float64) error {
 	}
 
 	// Проверяем, завершены ли все вычисления выражения
-	if exprID, allDone, finalResult := s.taskManager.CheckExpressionCompletion(id); allDone {
-		s.expressions[exprID].Status = "completed"
-		s.expressions[exprID].Result = &finalResult
+	if exprID, allDone, finalResult, hasError := s.taskManager.CheckExpressionCompletion(id); allDone {
+		if hasError {
+			s.expressions[exprID].Status = "error"
+		} else {
+			s.expressions[exprID].Status = "completed"
+			s.expressions[exprID].Result = &finalResult
+		}
+	}
+
+	return nil
+}
+
+// Обработка ошибки от агента
+func (s *Service) SubmitTaskError(taskID string, errorMsg string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.taskManager.CompleteTaskWithError(taskID, errorMsg); err != nil {
+		return err
+	}
+
+	// Проверяем, завершены ли все вычисления выражения
+	if exprID, allDone, _, hasError := s.taskManager.CheckExpressionCompletion(taskID); allDone {
+		if hasError {
+			s.expressions[exprID].Status = "error"
+			s.expressions[exprID].Error = &errorMsg
+		} else {
+			s.expressions[exprID].Status = "completed"
+		}
 	}
 
 	return nil
