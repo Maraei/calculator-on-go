@@ -6,7 +6,6 @@ import (
 	"fmt"
 )
 
-// Выполняет операцию в зависимости от типа
 func Calculate(arg1, arg2 float64, operation string) (float64, error) {
     switch operation {
     case "+":
@@ -25,7 +24,6 @@ func Calculate(arg1, arg2 float64, operation string) (float64, error) {
     }
 }
 
-// Получение времени выполнения операции из переменных окружения
 func getOperationTime(envVar string, defaultTime int) int {
 	value, err := strconv.Atoi(os.Getenv(envVar))
 	if err != nil || value <= 0 {

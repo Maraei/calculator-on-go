@@ -1,4 +1,3 @@
-// internal/agent/agents_test.go
 package agent
 
 import (
@@ -6,7 +5,6 @@ import (
 	"os"
 )
 
-// Тест функции Calculate
 func TestCalculate(t *testing.T) {
 	tests := []struct {
 		arg1       float64
@@ -19,8 +17,8 @@ func TestCalculate(t *testing.T) {
 		{5, 2, "-", 3, false},
 		{4, 3, "*", 12, false},
 		{10, 2, "/", 5, false},
-		{10, 0, "/", 0, true}, // Деление на ноль
-		{1, 1, "%", 0, true}, // Неизвестная операция
+		{10, 0, "/", 0, true},
+		{1, 1, "%", 0, true},
 	}
 
 	for _, test := range tests {
@@ -50,7 +48,6 @@ func TestGetOperationTime(t *testing.T) {
 		t.Errorf("Ожидали 4000, но получили %v", time2)
 	}
 
-	// Дополнительная проверка на пустую переменную окружения
 	time3 := getOperationTime("", 5000)
 	if time3 != 5000 {
 		t.Errorf("Ожидали 5000, но получили %v", time3)

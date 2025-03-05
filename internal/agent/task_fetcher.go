@@ -10,7 +10,6 @@ import (
 	"errors"
 )
 
-// Task представляет задачу, получаемую от оркестратора
 type Task struct {
 	ID            string  `json:"id"`
 	Arg1          float64 `json:"arg1"`
@@ -19,14 +18,12 @@ type Task struct {
 	OperationTime int     `json:"operation_time"`
 }
 
-// Start запускает несколько горутин для получения и обработки задач
 func Start(workerCount int) {
 	for i := 0; i < workerCount; i++ {
 		go worker(i)
 	}
 }
 
-// worker получает задачи и вычисляет их
 func worker(id int) {
 	serverURL := os.Getenv("ORCHESTRATOR_URL")
 	if serverURL == "" {
@@ -39,11 +36,10 @@ func worker(id int) {
 		task, err := fetchTask(taskEndpoint)
 		if err != nil {
 			log.Printf("[Worker %d] Ошибка при получении задачи: %v", id, err)
-			time.Sleep(2 * time.Second) // Ждём перед следующей попыткой
+			time.Sleep(2 * time.Second)
 			continue
 		}
 
-		// Если задачи нет, ждем
 		if task == nil {
 			log.Printf("[Worker %d] Нет новых задач, ждем...", id)
 			time.Sleep(2 * time.Second)
@@ -52,10 +48,8 @@ func worker(id int) {
 
 		log.Printf("[Worker %d] Получена задача: %v", id, task)
 
-		// Выполняем вычисление
 		result, err := Calculate(task.Arg1, task.Arg2, task.Operation)
 		if err != nil {
-			// Отправляем ошибку обратно оркестратору
 			if err := sendResult(taskEndpoint, task.ID, 0, err.Error()); err != nil {
 				log.Printf("[Worker %d] Ошибка отправки ошибки: %v", id, err)
 			} else {
@@ -64,7 +58,6 @@ func worker(id int) {
 			continue
 		}
 
-		// Отправляем результат обратно оркестратору
 		if err := sendResult(taskEndpoint, task.ID, result, ""); err != nil {
 			log.Printf("[Worker %d] Ошибка отправки результата: %v", id, err)
 		} else {
@@ -73,7 +66,6 @@ func worker(id int) {
 	}
 }
 
-// fetchTask отправляет запрос на получение задачи
 func fetchTask(url string) (*Task, error) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -81,12 +73,10 @@ func fetchTask(url string) (*Task, error) {
 	}
 	defer resp.Body.Close()
 
-	// Если задачи нет, возвращаем nil, но это не ошибка
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, nil
 	}
 
-	// Если ответ не OK, то возвращаем ошибку
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.New("не удалось получить задачу: статус " + resp.Status)
 	}
@@ -100,7 +90,6 @@ func fetchTask(url string) (*Task, error) {
 	return &response.Task, nil
 }
 
-// sendResult отправляет результат или ошибку оркестратору
 func sendResult(url, taskID string, result float64, errMsg string) error {
 	payload := make(map[string]interface{})
 	payload["id"] = taskID

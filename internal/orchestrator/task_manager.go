@@ -32,12 +32,10 @@ func NewTaskManager() *TaskManager {
 	}
 }
 
-// precedence задает приоритет операций
 var precedence = map[string]int{
 	"+": 1, "-": 1, "*": 2, "/": 2,
 }
 
-// toRPN преобразует инфиксное выражение в обратную польскую нотацию (ОПН)
 func toRPN(expression string) ([]string, error) {
     tokens, err := tokenizeExpression(expression)
     if err != nil {
@@ -47,24 +45,19 @@ func toRPN(expression string) ([]string, error) {
     var stack []string
 
     for _, token := range tokens {
-        // Если токен - число, добавляем в выходной список
         if _, err := strconv.ParseFloat(token, 64); err == nil {
             output = append(output, token)
         } else if token == "(" {
-            // Открывающая скобка - добавляем в стек
             stack = append(stack, token)
         } else if token == ")" {
-            // Закрывающая скобка - выталкиваем операторы до открывающей скобки
             for len(stack) > 0 && stack[len(stack)-1] != "(" {
                 output = append(output, stack[len(stack)-1])
                 stack = stack[:len(stack)-1]
             }
-            // Убираем из стека открывающую скобку
             if len(stack) > 0 && stack[len(stack)-1] == "(" {
                 stack = stack[:len(stack)-1]
             }
         } else {
-            // Оператор - выталкиваем операторы с более высоким или равным приоритетом
             for len(stack) > 0 && precedence[stack[len(stack)-1]] >= precedence[token] {
                 output = append(output, stack[len(stack)-1])
                 stack = stack[:len(stack)-1]
@@ -73,7 +66,6 @@ func toRPN(expression string) ([]string, error) {
         }
     }
 
-    // Переносим оставшиеся операторы из стека в вывод
     for len(stack) > 0 {
         output = append(output, stack[len(stack)-1])
         stack = stack[:len(stack)-1]
@@ -82,7 +74,6 @@ func toRPN(expression string) ([]string, error) {
     return output, nil
 }
 
-// tokenizeExpression использует регулярное выражение для разделения выражения на токены
 func tokenizeExpression(expression string) ([]string, error) {
     re := regexp.MustCompile(`(\d+(\.\d*)?|\+|\-|\*|\/|\(|\))`)
     matches := re.FindAllString(expression, -1)
@@ -92,12 +83,10 @@ func tokenizeExpression(expression string) ([]string, error) {
     return matches, nil
 }
 
-// GenerateTasks разбивает выражение на задачи
 func (tm *TaskManager) GenerateTasks(expressionID, expression string) ([]string, error) {
     tm.mu.Lock()
     defer tm.mu.Unlock()
 
-    // Используем токенизацию с учётом чисел и операций
     rpn, err := toRPN(expression)
     if err != nil {
         return nil, fmt.Errorf("выражение неверно: %v", err)
@@ -114,7 +103,7 @@ func (tm *TaskManager) GenerateTasks(expressionID, expression string) ([]string,
 
     for _, token := range rpn {
         if _, err := strconv.ParseFloat(token, 64); err == nil {
-            stack = append(stack, token) // Число — просто кладем в стек
+            stack = append(stack, token)
         } else {
             if len(stack) < 2 {
                 return nil, fmt.Errorf("недостаточно операндов для операции %s", token)
@@ -122,8 +111,7 @@ func (tm *TaskManager) GenerateTasks(expressionID, expression string) ([]string,
 
             arg2 := stack[len(stack)-1]
             arg1 := stack[len(stack)-2]
-            stack = stack[:len(stack)-2] // Убираем их из стека
-
+            stack = stack[:len(stack)-2]
             taskID := expressionID
             task := &Task{
                 ID:            taskID,
@@ -135,7 +123,7 @@ func (tm *TaskManager) GenerateTasks(expressionID, expression string) ([]string,
             tm.tasks[taskID] = task
             taskIDs = append(taskIDs, taskID)
 
-            stack = append(stack, taskID) // Подставляем ID задачи вместо результата
+            stack = append(stack, taskID)
         }
     }
 
@@ -147,7 +135,6 @@ func parseFloat(str string) float64 {
     return val
 }
 
-// Получение следующей задачи
 func (tm *TaskManager) GetNextTask() (*Task, bool) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
@@ -159,7 +146,6 @@ func (tm *TaskManager) GetNextTask() (*Task, bool) {
 	return nil, false
 }
 
-// Завершение задачи с результатом
 func (tm *TaskManager) CompleteTask(taskID string, result float64) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
@@ -168,7 +154,6 @@ func (tm *TaskManager) CompleteTask(taskID string, result float64) error {
 	return nil
 }
 
-// Завершение задачи с ошибкой
 func (tm *TaskManager) CompleteTaskWithError(taskID string, errorMsg string) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
@@ -177,7 +162,6 @@ func (tm *TaskManager) CompleteTaskWithError(taskID string, errorMsg string) err
 	return nil
 }
 
-// Проверка завершения выражения
 func (tm *TaskManager) CheckExpressionCompletion(taskID string) (string, bool, float64, bool) {
     tm.mu.Lock()
     defer tm.mu.Unlock()
@@ -188,7 +172,6 @@ func (tm *TaskManager) CheckExpressionCompletion(taskID string) (string, bool, f
         return "", false, 0, false
     }
 
-    // Проверяем, существует ли выражение
     expr, exists := tm.expressions[exprID]
     if !exists {
         log.Printf("Ошибка: выражение с ID %s не найдено", exprID)
@@ -213,7 +196,6 @@ func (tm *TaskManager) CheckExpressionCompletion(taskID string) (string, bool, f
         return exprID, true, 0, true
     }
 
-    // Проверяем, остались ли невыполненные задачи
     for id := range tm.tasks {
         if strings.HasPrefix(id, exprID) {
             log.Printf("Невыполненные задачи для выражения %s", exprID)
@@ -221,7 +203,6 @@ func (tm *TaskManager) CheckExpressionCompletion(taskID string) (string, bool, f
         }
     }
 
-    // Если все задачи выполнены, вычисляем итоговый результат
     var stack []float64
     rpn, _ := toRPN(expr.Input)
     for _, token := range rpn {

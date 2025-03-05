@@ -1,6 +1,6 @@
 # calculator-on-go
 
-Этот проект представляет собой калькулятор, реализованный на языке Go. Он позволяет вычислять математические выражения, такие как сложение, умножение, деление, вычитание и возведение в степень.
+Этот проект представляет собой калькулятор, реализованный на языке Go. Система для параллельного вычисления сложных арифметических выражений с использованием оркестратора и агента.
 
 ## Возможности
 
@@ -45,13 +45,7 @@ go run .\cmd\agent\main.go
 ```bash
 curl -X POST "http://localhost:8080/api/v1/calculate" -H "Content-Type: application/json" -d '{"expression": "3 + 4 * 2"}'
 ```
-```
-Ответ:
-```json
-{
-  "id": "1"
-}
-```
+
 2. Получение списка выражений
 ```bash
 curl -X GET "http://localhost:8080/api/v1/expressions"
@@ -67,39 +61,46 @@ go test ./...
 
 ## Примеры сценариев
 1. Успешное вычисление
-```bash
 # Отправка выражения
-curl -X POST "http://localhost:8080/api/v1/calculate" -H "Content-Type: application/json" -d '{"expression": "3 * 2 +5 "}'
-
-# Проверка статуса
-curl http://localhost:8080/api/v1/expressions
-
-# Ответ через 500 мс:
-{
-    "expression": {
-        "id": "1",
-        "status": "completed",
-        "result": 11
-    }
-}
+```bash
+curl -X POST "http://localhost:8080/api/v1/calculate" -H "Content-Type: application/json" -d '{"expression": "(3 +2)*5 "}'
+```
+# Ответ(200) :
+```bash
+{"expressions":[{"id":"10c77400-cf81-48f9-ac58-e3c6574090dd","status":"completed","result":25,"input":"(3 +2)*5 "}]}
 ```
 
 2. Ошибка деления на ноль
-```bash
+
 # Отправка выражения
+```bash
 curl -X POST "http://localhost:8080/api/v1/calculate" -H "Content-Type: application/json" -d '{"expression": "3 / 0 "}'
+```
+# Ответ(422):
+```bash
+{"expressions":[{"id":"e61b6fae-d03b-483b-9f2b-5b64221ca0e6","status":"error","error":"деление на ноль","input":"3 / 0"}]}
+```
 
-# Проверка статуса
-curl http://localhost:8080/api/v1/expressions
+3. Выражение с буквами
 
-# Ответ через 500 мс:
-{
-    "expression": {
-        "id": "2",
-        "status": "error",
-        "result": null
-    }
-}
+# Отправка выражения
+```bash
+curl -X POST "http://localhost:8080/api/v1/calculate" -H "Content-Type: application/json" -d '{"expression": "df"}'
+```
+# Ответ(422):
+```bash
+выражение неверно: разрешены только числа и ( ) + - * /
+```
+4. Выражение c лишними знаками действия, с не закрытой скобкой
+
+# Отправка выражения
+```bash
+curl -X POST "http://localhost:8080/api/v1/calculate" -H "Content-Type: application/json" -d '{"expression": "2++5"}'
+```
+# Ответ(422):
+```bash
+недостаточно операндов для операции +
+```
 
 ## Структура проекта
 
@@ -120,11 +121,6 @@ calculator-on-go
 │  │  ├─ handler.go            
 │  │  ├─ service.go 
 │  │  ├─ task_manager.go                
-├─ pkg
-│  ├─ models       
-│  │  ├─ expression.go            
-│  ├─ utils       
-│  │  ├─ config.go
 ├─ .evn
 ├─ agent
 ├─ go.mod

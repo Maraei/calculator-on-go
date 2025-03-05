@@ -23,7 +23,6 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/internal/task", h.SubmitResult).Methods("POST")
 }
 
-// Добавление нового выражения
 func (h *Handler) AddExpression(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Expression string `json:"expression"`
@@ -42,13 +41,11 @@ func (h *Handler) AddExpression(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"id": id})
 }
 
-// Получение списка выражений
 func (h *Handler) GetExpressions(w http.ResponseWriter, r *http.Request) {
 	expressions := h.Service.GetExpressions()
 	json.NewEncoder(w).Encode(map[string]interface{}{"expressions": expressions})
 }
 
-// Получение выражения по ID
 func (h *Handler) GetExpressionByID(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	expression, found := h.Service.GetExpressionByID(id)
@@ -59,7 +56,6 @@ func (h *Handler) GetExpressionByID(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"expression": expression})
 }
 
-// Агент запрашивает задачу
 func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 	task, found := h.Service.GetNextTask()
 	if !found {

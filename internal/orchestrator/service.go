@@ -35,7 +35,6 @@ func NewService(taskManager *TaskManager) *Service {
 	}
 }
 
-// Добавление выражения
 func (s *Service) AddExpression(expression string) (string, error) {
     s.mu.Lock()
     defer s.mu.Unlock()
@@ -47,7 +46,6 @@ func (s *Service) AddExpression(expression string) (string, error) {
         Status: "pending",
     }
 
-    // Генерация задач
     _, err := s.taskManager.GenerateTasks(id, expression)
     if err != nil {
         return "", err
@@ -56,7 +54,6 @@ func (s *Service) AddExpression(expression string) (string, error) {
     return id, nil
 }
 
-// Получение списка выражений
 func (s *Service) GetExpressions() []*Expression {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -68,7 +65,6 @@ func (s *Service) GetExpressions() []*Expression {
 	return result
 }
 
-// Получение выражения по ID
 func (s *Service) GetExpressionByID(id string) (*Expression, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -77,12 +73,10 @@ func (s *Service) GetExpressionByID(id string) (*Expression, bool) {
 	return expr, exists
 }
 
-// Получение следующей задачи для агента
 func (s *Service) GetNextTask() (*Task, bool) {
 	return s.taskManager.GetNextTask()
 }
 
-// Обработка результата от агента
 func (s *Service) SubmitTaskResult(id string, result float64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -91,7 +85,6 @@ func (s *Service) SubmitTaskResult(id string, result float64) error {
 		return err
 	}
 
-	// Проверяем, завершены ли все вычисления выражения
 	if exprID, allDone, finalResult, hasError := s.taskManager.CheckExpressionCompletion(id); allDone {
 		if hasError {
 			s.expressions[exprID].Status = "error"
@@ -104,7 +97,6 @@ func (s *Service) SubmitTaskResult(id string, result float64) error {
 	return nil
 }
 
-// Обработка ошибки от агента
 func (s *Service) SubmitTaskError(taskID string, errorMsg string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -113,7 +105,6 @@ func (s *Service) SubmitTaskError(taskID string, errorMsg string) error {
 		return err
 	}
 
-	// Проверяем, завершены ли все вычисления выражения
 	if exprID, allDone, _, hasError := s.taskManager.CheckExpressionCompletion(taskID); allDone {
 		if hasError {
 			s.expressions[exprID].Status = "error"
