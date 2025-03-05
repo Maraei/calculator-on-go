@@ -21,13 +21,41 @@ git clone https://github.com/Maraei/calculator-on-go.git
 cd calculator-on-go
 ```
 
-2. Запустите сервер:
+2. Запуск оркестратора:
 
-Для запуска сервера выполните команду:
 ```bash
-go run ./cmd/main.go
+go run ./cmd/orchestrator/main.go
 ```
-Сервер будет запущен на порту 8080 по умолчанию по адресу: http://localhost:8080.
+3. Запуск агента:
+Linux / macOS (bash):
+```bash
+export ORCHESTRATOR_URL=http://localhost:8080
+go run ./cmd/agent/main.go
+```
+Windows (cmd.exe):
+```bash
+set ORCHESTRATOR_URL=http://localhost:8080
+go run .\cmd\agent\main.go
+```
+
+## Примеры использования
+
+1. Добавление выражения
+
+```bash
+curl -X POST "http://localhost:8080/api/v1/calculate" -H "Content-Type: application/json" -d '{"expression": "3 + 4 * 2"}'
+```
+```
+Ответ:
+```json
+{
+  "id": "1"
+}
+```
+2. Получение списка выражений
+```bash
+curl -X GET "http://localhost:8080/api/v1/expressions"
+```
 
 ## Тестирование
 
@@ -37,70 +65,70 @@ go run ./cmd/main.go
 go test ./...
 ```
 
-## Примеры использования
-
-### Формат запроса
-
-```json
-{
-  "expression": "ваше_выражение"
-}
-```
-Успешный запрос
+## Примеры сценариев
+1. Успешное вычисление
 ```bash
-curl --location 'localhost:8080/api/v1/calculate' \
---header 'Content-Type: application/json' \
---data '{
-  "expression": "2+2*2"
-}'
-```
-Ответ:
+# Отправка выражения
+curl -X POST "http://localhost:8080/api/v1/calculate" -H "Content-Type: application/json" -d '{"expression": "3 * 2 +5 "}'
 
-```json
+# Проверка статуса
+curl http://localhost:8080/api/v1/expressions
+
+# Ответ через 500 мс:
 {
-  "result": "6"
+    "expression": {
+        "id": "1",
+        "status": "completed",
+        "result": 11
+    }
 }
 ```
 
-Ошибка 422: некорректное выражение
+2. Ошибка деления на ноль
 ```bash
-curl --location 'localhost:8080/api/v1/calculate' \
---header 'Content-Type: application/json' \
---data '{
-  "expression": "10/0"
-}'
-```
-Ответ:
+# Отправка выражения
+curl -X POST "http://localhost:8080/api/v1/calculate" -H "Content-Type: application/json" -d '{"expression": "3 / 0 "}'
 
-```json
+# Проверка статуса
+curl http://localhost:8080/api/v1/expressions
+
+# Ответ через 500 мс:
 {
-  "error": "Division by zero"
+    "expression": {
+        "id": "2",
+        "status": "error",
+        "result": null
+    }
 }
-```
-
-Ошибка 500: серверная ошибка
-Если происходит внутренняя ошибка сервера, вы получите ответ с кодом 500 и следующим сообщением:
-
-```json
-{
-  "error": "Unknown error"
-}
-```
 
 ## Структура проекта
 
 ```
 calculator-on-go
 ├─ cmd
-│  ├─ main.go                           - входная точка программы
+│  ├─ agent
+│  │  ├─ main.go
+│  ├─ orchestrator
+│  │  ├─ main_test.go
+│  │  ├─ main.go                       
 ├─ internal
-│  ├─ application
-│  │  ├─ application_test.go            - тесты для модуля application
-│  │  ├─ application.go                 - HTTP сервер для обработки запросов
+│  ├─ agent
+│  │  ├─ agent_test.go            
+│  │  ├─ calculator.go 
+│  │  ├─ task_fetcher.go
+│  ├─ orchestrator
+│  │  ├─ handler.go            
+│  │  ├─ service.go 
+│  │  ├─ task_manager.go                
 ├─ pkg
-│  ├─ calculation       
-│  │  ├─ calculation_test.go            - тесты для модуля calculation
-│  │  ├─ calculation.go                 - логика вычислений и парсинга выражений 
-├─ go.mod                               - файл с зависимостями проекта
+│  ├─ models       
+│  │  ├─ expression.go            
+│  ├─ utils       
+│  │  ├─ config.go
+├─ .evn
+├─ agent
+├─ go.mod
+├─ go.sum                
+├─ orchestrator                             
 ├─ README.md
 ```

@@ -1,19 +1,22 @@
 package orchestrator
 
 import (
-	"log"
-	"math/rand"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
-	"errors"
+	"math/rand"
+	"log"
+    
+	"github.com/Maraei/calculator-on-go/internal/agent"
 )
 
 type TaskManager struct {
-	mu      sync.Mutex
-	tasks   map[string]*Task
-	results map[string]TaskResult
+	mu           sync.Mutex
+	tasks        map[string]*Task
+	results      map[string]TaskResult
+	expressions  map[string]*Expression
 }
 
 type TaskResult struct {
@@ -23,53 +26,125 @@ type TaskResult struct {
 
 func NewTaskManager() *TaskManager {
 	return &TaskManager{
-		tasks:   make(map[string]*Task),
-		results: make(map[string]TaskResult),
+		tasks:       make(map[string]*Task),
+		results:     make(map[string]TaskResult),
+		expressions: make(map[string]*Expression),
 	}
 }
 
-// Генерация задач из выражения
-func (tm *TaskManager) GenerateTasks(expressionID, expression string) error {
-	tm.mu.Lock()
-	defer tm.mu.Unlock()
+// precedence задает приоритет операций
+var precedence = map[string]int{
+	"+": 1, "-": 1, "*": 2, "/": 2,
+}
 
-	// Валидация выражения
-	if err := validateExpression(expression); err != nil {
-		return err
-	}
+// toRPN преобразует инфиксное выражение в обратную польскую нотацию (ОПН)
+func toRPN(expression string) ([]string, error) {
+    tokens, err := tokenizeExpression(expression)
+    if err != nil {
+        return nil, fmt.Errorf("%v", err)
+    }
+    var output []string
+    var stack []string
 
-	// Остальная логика генерации задач...
-	re := regexp.MustCompile(`(\d+(\.\d+)?|\+|\-|\*|\/)`)
-	tokens := re.FindAllString(expression, -1)
-	log.Printf("Токены после разбиения регэкспом: %+v", tokens)
+    for _, token := range tokens {
+        // Если токен - число, добавляем в выходной список
+        if _, err := strconv.ParseFloat(token, 64); err == nil {
+            output = append(output, token)
+        } else if token == "(" {
+            // Открывающая скобка - добавляем в стек
+            stack = append(stack, token)
+        } else if token == ")" {
+            // Закрывающая скобка - выталкиваем операторы до открывающей скобки
+            for len(stack) > 0 && stack[len(stack)-1] != "(" {
+                output = append(output, stack[len(stack)-1])
+                stack = stack[:len(stack)-1]
+            }
+            // Убираем из стека открывающую скобку
+            if len(stack) > 0 && stack[len(stack)-1] == "(" {
+                stack = stack[:len(stack)-1]
+            }
+        } else {
+            // Оператор - выталкиваем операторы с более высоким или равным приоритетом
+            for len(stack) > 0 && precedence[stack[len(stack)-1]] >= precedence[token] {
+                output = append(output, stack[len(stack)-1])
+                stack = stack[:len(stack)-1]
+            }
+            stack = append(stack, token)
+        }
+    }
 
-	// Если токенов недостаточно для создания задачи
-	if len(tokens) < 3 {
-		return errors.New("недостаточно токенов для создания задачи")
-	}
+    // Переносим оставшиеся операторы из стека в вывод
+    for len(stack) > 0 {
+        output = append(output, stack[len(stack)-1])
+        stack = stack[:len(stack)-1]
+    }
 
-	// Генерация задач...
-	for i := 1; i < len(tokens)-1; i += 2 {
-		arg1, err1 := strconv.ParseFloat(tokens[i-1], 64)
-		arg2, err2 := strconv.ParseFloat(tokens[i+1], 64)
-		operation := tokens[i]
+    return output, nil
+}
 
-		if err1 != nil || err2 != nil {
-			log.Printf("Ошибка парсинга аргументов: %v, %v", err1, err2)
-			return errors.New("неверный формат чисел в выражении")
-		}
+// tokenizeExpression использует регулярное выражение для разделения выражения на токены
+func tokenizeExpression(expression string) ([]string, error) {
+    re := regexp.MustCompile(`(\d+(\.\d*)?|\+|\-|\*|\/|\(|\))`)
+    matches := re.FindAllString(expression, -1)
+    if matches == nil {
+        return nil, fmt.Errorf("разрешены только числа и ( ) + - * /")
+    }
+    return matches, nil
+}
 
-		taskID := expressionID
-		tm.tasks[taskID] = &Task{
-			ID:            taskID,
-			Arg1:          arg1,
-			Arg2:          arg2,
-			Operation:     operation,
-			OperationTime: rand.Intn(3000) + 1000,
-		}
-	}
+// GenerateTasks разбивает выражение на задачи
+func (tm *TaskManager) GenerateTasks(expressionID, expression string) ([]string, error) {
+    tm.mu.Lock()
+    defer tm.mu.Unlock()
 
-	return nil
+    // Используем токенизацию с учётом чисел и операций
+    rpn, err := toRPN(expression)
+    if err != nil {
+        return nil, fmt.Errorf("выражение неверно: %v", err)
+    }
+
+    tm.expressions[expressionID] = &Expression{
+        ID:     expressionID,
+        Input:  expression,
+        Status: "pending",
+    }
+
+    var stack []string
+    taskIDs := []string{}
+
+    for _, token := range rpn {
+        if _, err := strconv.ParseFloat(token, 64); err == nil {
+            stack = append(stack, token) // Число — просто кладем в стек
+        } else {
+            if len(stack) < 2 {
+                return nil, fmt.Errorf("недостаточно операндов для операции %s", token)
+            }
+
+            arg2 := stack[len(stack)-1]
+            arg1 := stack[len(stack)-2]
+            stack = stack[:len(stack)-2] // Убираем их из стека
+
+            taskID := expressionID
+            task := &Task{
+                ID:            taskID,
+                Arg1:          parseFloat(arg1),
+                Arg2:          parseFloat(arg2),
+                Operation:     token,
+                OperationTime: rand.Intn(3000) + 1000,
+            }
+            tm.tasks[taskID] = task
+            taskIDs = append(taskIDs, taskID)
+
+            stack = append(stack, taskID) // Подставляем ID задачи вместо результата
+        }
+    }
+
+    return taskIDs, nil
+}
+
+func parseFloat(str string) float64 {
+    val, _ := strconv.ParseFloat(str, 64)
+    return val
 }
 
 // Получение следующей задачи
@@ -104,59 +179,77 @@ func (tm *TaskManager) CompleteTaskWithError(taskID string, errorMsg string) err
 
 // Проверка завершения выражения
 func (tm *TaskManager) CheckExpressionCompletion(taskID string) (string, bool, float64, bool) {
-	tm.mu.Lock()
-	defer tm.mu.Unlock()
+    tm.mu.Lock()
+    defer tm.mu.Unlock()
 
-	exprID := strings.Split(taskID, "_")[0]
-	hasError := false
-	var finalResult float64
+    exprID := strings.Split(taskID, "_")[0]
+    if exprID == "" {
+        log.Println("Ошибка: пустой exprID")
+        return "", false, 0, false
+    }
 
-	// Проверяем результаты задач
-	for id, res := range tm.results {
-		if strings.HasPrefix(id, exprID) {
-			if res.Error != "" {
-				hasError = true
-				break
-			}
-			finalResult += res.Result
-		}
-	}
+    // Проверяем, существует ли выражение
+    expr, exists := tm.expressions[exprID]
+    if !exists {
+        log.Printf("Ошибка: выражение с ID %s не найдено", exprID)
+        return exprID, true, 0, true
+    }
 
-	// Если есть ошибка, возвращаем true и флаг ошибки
-	if hasError {
-		return exprID, true, 0, true
-	}
+    hasError := false
+    results := make(map[string]float64)
 
-	// Проверяем, остались ли невыполненные задачи
-	for id := range tm.tasks {
-		if strings.HasPrefix(id, exprID) {
-			return "", false, 0, false
-		}
-	}
+    for id, res := range tm.results {
+        if strings.HasPrefix(id, exprID) {
+            if res.Error != "" {
+                hasError = true
+                break
+            }
+            results[id] = res.Result
+        }
+    }
 
-	// Если все задачи выполнены и нет ошибок, возвращаем финальный результат
-	return exprID, true, finalResult, false
-}
+    if hasError {
+        log.Printf("Ошибка в задачах для выражения %s", exprID)
+        return exprID, true, 0, true
+    }
 
+    // Проверяем, остались ли невыполненные задачи
+    for id := range tm.tasks {
+        if strings.HasPrefix(id, exprID) {
+            log.Printf("Невыполненные задачи для выражения %s", exprID)
+            return "", false, 0, false
+        }
+    }
 
+    // Если все задачи выполнены, вычисляем итоговый результат
+    var stack []float64
+    rpn, _ := toRPN(expr.Input)
+    for _, token := range rpn {
+        if num, err := strconv.ParseFloat(token, 64); err == nil {
+            stack = append(stack, num)
+        } else {
+            if len(stack) < 2 {
+                log.Printf("Ошибка: недостаточно операндов для операции %s", token)
+                return exprID, true, 0, true
+            }
+            arg2 := stack[len(stack)-1]
+            arg1 := stack[len(stack)-2]
+            stack = stack[:len(stack)-2]
 
-func validateExpression(expression string) error {
-	// Регулярное выражение для проверки допустимых символов
-	validChars := regexp.MustCompile(`^[\d\s\+\-\*\/\.]+$`)
-	if !validChars.MatchString(expression) {
-		return errors.New("выражение содержит недопустимые символы")
-	}
+            result, err := agent.Calculate(arg1, arg2, token)
+            if err != nil {
+                log.Printf("Ошибка вычисления: %v", err)
+                return exprID, true, 0, true
+            }
+            stack = append(stack, result)
+        }
+    }
 
-	// Проверка на пустое выражение
-	if len(strings.TrimSpace(expression)) == 0 {
-		return errors.New("выражение пустое")
-	}
+    if len(stack) != 1 {
+        log.Printf("Ошибка: некорректный результат вычислений")
+        return exprID, true, 0, true
+    }
 
-	// Проверка на наличие хотя бы одного оператора
-	hasOperator := regexp.MustCompile(`[\+\-\*\/]`).MatchString(expression)
-	if !hasOperator {
-		return errors.New("выражение не содержит операторов")
-	}
-
-	return nil
+    log.Printf("Выражение %s успешно завершено, результат: %v", exprID, stack[0])
+    return exprID, true, stack[0], false
 }

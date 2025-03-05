@@ -1,35 +1,14 @@
 package agent
 
 import (
-	"errors"
 	"os"
 	"strconv"
-	"time"
 	"fmt"
 )
 
 // Выполняет операцию в зависимости от типа
 func Calculate(arg1, arg2 float64, operation string) (float64, error) {
-	// Время выполнения операции задается переменными окружения
-	var duration int
-	switch operation {
-	case "+":
-		duration = getOperationTime("TIME_ADDITION_MS", 2000)
-	case "-":
-		duration = getOperationTime("TIME_SUBTRACTION_MS", 2000)
-	case "*":
-		duration = getOperationTime("TIME_MULTIPLICATIONS_MS", 3000)
-	case "/":
-		duration = getOperationTime("TIME_DIVISIONS_MS", 3000)
-	default:
-		return 0, errors.New("неизвестная операция: " + operation)
-	}
-
-	// Симуляция длительного вычисления
-	time.Sleep(time.Duration(duration) * time.Millisecond)
-
-	// Выполнение самой операции
-	switch operation {
+    switch operation {
     case "+":
         return arg1 + arg2, nil
     case "-":

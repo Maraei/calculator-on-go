@@ -2,7 +2,6 @@ package orchestrator
 
 import (
 	"sync"
-
 	"github.com/google/uuid"
 )
 
@@ -11,6 +10,7 @@ type Expression struct {
 	Status string   `json:"status"`
 	Result *float64 `json:"result,omitempty"`
 	Error  *string  `json:"error,omitempty"`
+	Input  string  `json:"input"`
 }
 
 type Task struct {
@@ -37,23 +37,23 @@ func NewService(taskManager *TaskManager) *Service {
 
 // Добавление выражения
 func (s *Service) AddExpression(expression string) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+    s.mu.Lock()
+    defer s.mu.Unlock()
 
-	// Валидация выражения
-	if err := s.taskManager.GenerateTasks("", expression); err != nil {
-		return "", err
-	}
+    id := uuid.New().String()
+    s.expressions[id] = &Expression{
+        ID:     id,
+        Input:  expression,
+        Status: "pending",
+    }
 
-	id := uuid.New().String()
-	s.expressions[id] = &Expression{ID: id, Status: "pending"}
+    // Генерация задач
+    _, err := s.taskManager.GenerateTasks(id, expression)
+    if err != nil {
+        return "", err
+    }
 
-	// Генерация задач
-	if err := s.taskManager.GenerateTasks(id, expression); err != nil {
-		return "", err
-	}
-
-	return id, nil
+    return id, nil
 }
 
 // Получение списка выражений
