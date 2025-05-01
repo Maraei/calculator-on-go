@@ -1,117 +1,111 @@
 package orchestrator
 
 import (
-	"sync"
-	"github.com/google/uuid"
+	"errors"
+	"fmt"
+	"strings"
 )
 
-type Expression struct {
-	ID     string   `json:"id"`
-	Status string   `json:"status"`
-	Result *float64 `json:"result,omitempty"`
-	Error  *string  `json:"error,omitempty"`
-	Input  string  `json:"input"`
-}
-
-type Task struct {
-	ID            string  `json:"id"`
-	Arg1          float64 `json:"arg1"`
-	Arg2          float64 `json:"arg2"`
-	Operation     string  `json:"operation"`
-	OperationTime int     `json:"operation_time"`
-	Result        float64 `json:"result,omitempty"`
-}
-
 type Service struct {
-	mu          sync.Mutex
-	expressions map[string]*Expression
+	repo        *Repository
 	taskManager *TaskManager
 }
 
-func NewService(taskManager *TaskManager) *Service {
+func NewService(repo *Repository, tm *TaskManager) *Service {
 	return &Service{
-		expressions: make(map[string]*Expression),
-		taskManager: taskManager,
+		repo:        repo,
+		taskManager: tm,
 	}
 }
 
-func (s *Service) AddExpression(expression string) (string, error) {
-    s.mu.Lock()
-    defer s.mu.Unlock()
-
-    id := uuid.New().String()
-    s.expressions[id] = &Expression{
-        ID:     id,
-        Input:  expression,
-        Status: "pending",
-    }
-
-    _, err := s.taskManager.GenerateTasks(id, expression)
-    if err != nil {
-        return "", err
-    }
-
-    return id, nil
-}
-
-func (s *Service) GetExpressions() []*Expression {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var result []*Expression
-	for _, expr := range s.expressions {
-		result = append(result, expr)
+func (s *Service) AddExpression(userID uint, input string) (string, error) {
+	rpnTokens, err := InfixToRPN(input)
+	if err != nil {
+		return "", fmt.Errorf("не удалось разобрать выражение: %w", err)
 	}
-	return result
+	rpn := strings.Join(rpnTokens, " ")
+
+	expr, err := s.repo.CreateExpression(userID, input)
+	if err != nil {
+		return "", err
+	}
+	
+	tasks, err := s.taskManager.GenerateTasks(expr.ID, rpn)
+	if err != nil {
+		return "", err
+	}
+	for _, t := range tasks {
+		if err := s.repo.CreateTask(t); err != nil {
+			return "", err
+		}
+	}
+	return expr.ID, nil
 }
 
-func (s *Service) GetExpressionByID(id string) (*Expression, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	expr, exists := s.expressions[id]
-	return expr, exists
+func (s *Service) GetNextTask() (*Task, error) {
+	return s.repo.GetPendingTask()
 }
 
-func (s *Service) GetNextTask() (*Task, bool) {
-	return s.taskManager.GetNextTask()
-}
-
-func (s *Service) SubmitTaskResult(id string, result float64) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if err := s.taskManager.CompleteTask(id, result); err != nil {
+func (s *Service) SubmitTaskResult(taskID string, result float64) error {
+	task, err := s.repo.GetPendingTask()
+	if err != nil {
 		return err
 	}
 
-	if exprID, allDone, finalResult, hasError := s.taskManager.CheckExpressionCompletion(id); allDone {
-		if hasError {
-			s.expressions[exprID].Status = "error"
-		} else {
-			s.expressions[exprID].Status = "completed"
-			s.expressions[exprID].Result = &finalResult
-		}
+	if task.ID != taskID {
+		return errors.New("task ID mismatch")
 	}
 
-	return nil
+	if err := s.repo.CompleteTask(taskID, result); err != nil {
+		return err
+	}
+
+	return s.checkExpressionCompletion(task.ExpressionID)
 }
 
 func (s *Service) SubmitTaskError(taskID string, errorMsg string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if err := s.taskManager.CompleteTaskWithError(taskID, errorMsg); err != nil {
+	task, err := s.repo.GetPendingTask()
+	if err != nil {
 		return err
 	}
 
-	if exprID, allDone, _, hasError := s.taskManager.CheckExpressionCompletion(taskID); allDone {
-		if hasError {
-			s.expressions[exprID].Status = "error"
-			s.expressions[exprID].Error = &errorMsg
-		} else {
-			s.expressions[exprID].Status = "completed"
+	if task.ID != taskID {
+		return errors.New("task ID mismatch")
+	}
+
+	if err := s.repo.FailTask(taskID, errorMsg); err != nil {
+		return err
+	}
+
+	return s.repo.UpdateExpressionError(task.ExpressionID, errorMsg)
+}
+
+func (s *Service) GetExpressionByID(id string) (*Expression, error) {
+	return s.repo.GetExpressionByID(id)
+}
+
+func (s *Service) checkExpressionCompletion(expressionID string) error {
+	tasks, err := s.repo.GetTasksByExpression(expressionID)
+	if err != nil {
+		return err
+	}
+
+	allCompleted := true
+	var total float64
+	for _, task := range tasks {
+		if task.Status == "error" {
+			return s.repo.UpdateExpressionError(expressionID, *task.Error)
 		}
+		if task.Status != "completed" {
+			allCompleted = false
+		}
+		if task.Result != nil {
+			total += *task.Result
+		}
+	}
+
+	if allCompleted {
+		return s.repo.UpdateExpressionResult(expressionID, total)
 	}
 
 	return nil

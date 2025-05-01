@@ -1,0 +1,192 @@
+syntax = "proto3";
+
+package calculator;
+
+option go_package = "/api";
+
+import "google/api/annotations.proto";
+
+// ==== Сервисы оркестратора ====
+service OrchestratorService {
+  rpc AddExpression(AddExpressionRequest) returns (AddExpressionResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/calculate"
+      body: "*"
+    };
+  }
+    rpc GetResult(GetResultRequest) returns (GetResultResponse) {
+    option (google.api.http) = {
+        get: "/api/v1/result/{id}"
+    };
+}
+  rpc GetExpressions(GetExpressionsRequest) returns (GetExpressionsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/expressions"
+    };
+  }
+
+  rpc GetExpressionByID(GetExpressionByIDRequest) returns (GetExpressionByIDResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/expressions/{id}"
+    };
+  }
+
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/task"
+    };
+  }
+
+  rpc SubmitResult(SubmitResultRequest) returns (SubmitResultResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/result"
+      body: "*"
+    };
+  }
+}
+
+// ==== Сервис агента ====
+service TaskService {
+  rpc FetchTask(FetchTaskRequest) returns (FetchTaskResponse);
+  rpc SendResult(SendResultRequest) returns (SendResultResponse);
+}
+
+// ==== Сервис аутентификации ====
+service AuthCalculatorService {
+  rpc Register(AuthRequest) returns (AuthResponse) {
+    option (google.api.http) = {
+      post: "/v1/register"
+      body: "*"
+    };
+  }
+
+  rpc Login(AuthRequest) returns (TokenResponse) {
+    option (google.api.http) = {
+      post: "/v1/login"
+      body: "*"
+    };
+  }
+
+  rpc Validate(TokenRequest) returns (ValidateResponse) {
+    option (google.api.http) = {
+      post: "/v1/validate"
+      body: "*"
+    };
+  }
+}
+
+// ==== Модели для оркестратора ====
+
+message GetResultRequest {
+  string id = 1;
+}
+
+message GetResultResponse {
+  float result = 1;
+  string status = 2;
+  string error = 3;
+}
+
+message AddExpressionRequest {
+  uint32 user_id = 1;
+  string expression = 2;
+}
+
+message AddExpressionResponse {
+  string id = 1;
+}
+
+message GetExpressionsRequest {}
+
+message GetExpressionsResponse {
+  repeated Expression expressions = 1;
+}
+
+message GetExpressionByIDRequest {
+  string id = 1;
+}
+
+message GetExpressionByIDResponse {
+  Expression expression = 1;
+}
+
+message GetTaskRequest {}
+
+message GetTaskResponse {
+  Task task = 1;
+}
+
+message SubmitResultRequest {
+  string id = 1;
+  float result = 2;
+  string error = 3;
+}
+
+message SubmitResultResponse {
+  bool success = 1;
+}
+
+// ==== Модели для агента ====
+
+message FetchTaskRequest {}
+
+message FetchTaskResponse {
+  string task_id = 1;
+  float arg1 = 2;
+  float arg2 = 3;
+  string operation = 4;
+}
+
+message SendResultRequest {
+  string task_id = 1;
+  float result = 2;
+  string error_message = 3;
+}
+
+message SendResultResponse {
+  bool success = 1;
+}
+
+// ==== Модели для аутентификации ====
+
+message AuthRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message AuthResponse {
+  string message = 1;
+}
+
+message TokenResponse {
+  string token = 1;
+}
+
+message TokenRequest {
+  string token = 1;
+}
+
+message ValidateResponse {
+  bool valid = 1;
+  string username = 2;
+}
+
+// ==== Общие модели ====
+
+message Expression {
+  string id = 1;
+  string input = 2;
+  string status = 3;
+  float result = 4;
+  uint32 user_id = 5;
+  string error = 6;  
+}
+
+message Task {
+  string id = 1;
+  string expression_id = 2;
+  float arg1 = 3;
+  float arg2 = 4;
+  string operation = 5;
+  string status = 6;
+}

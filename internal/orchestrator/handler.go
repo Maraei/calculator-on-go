@@ -1,92 +1,149 @@
 package orchestrator
 
 import (
-	"encoding/json"
-	"net/http"
+	"context"
+	"time"
 
-	"github.com/gorilla/mux"
+	agentpb "github.com/Maraei/calculator-on-go/api/api"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
+type Expression struct {
+    ID        string    `gorm:"primaryKey"`  // id
+    UserID    uint32    `json:"user_id"`     // user_id (с нижним подчеркиванием)
+    Input     string    `json:"input"`       // input
+    Status    string    `json:"status"`      // status
+    Result    *float64 `json:"result"`      // result
+    Error     *string   `json:"error"`       // error
+    CreatedAt time.Time `json:"created_at"`
+    UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Task struct {
+	ID           string    `gorm:"primaryKey"`
+	ExpressionID string
+	Arg1         float64
+	Arg2         float64
+	Operation    string
+	Status       string // pending, completed, error
+	Result       *float64
+	Error        *string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type User struct {
+	ID        uint      `gorm:"primaryKey"`
+	Username  string    `gorm:"unique"`
+	Password  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+
 type Handler struct {
-	Service *Service
+	service *Service
+	agentpb.UnimplementedTaskServiceServer
+	agentpb.UnimplementedOrchestratorServiceServer
 }
 
 func NewHandler(service *Service) *Handler {
-	return &Handler{Service: service}
+	return &Handler{service: service}
 }
 
-func (h *Handler) RegisterRoutes(router *mux.Router) {
-	router.HandleFunc("/api/v1/calculate", h.AddExpression).Methods("POST")
-	router.HandleFunc("/api/v1/expressions", h.GetExpressions).Methods("GET")
-	router.HandleFunc("/api/v1/expressions/{id}", h.GetExpressionByID).Methods("GET")
-	router.HandleFunc("/internal/task", h.GetTask).Methods("GET")
-	router.HandleFunc("/internal/task", h.SubmitResult).Methods("POST")
-}
-
-func (h *Handler) AddExpression(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Expression string `json:"expression"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request", http.StatusUnprocessableEntity)
-		return
-	}
-
-	id, err := h.Service.AddExpression(req.Expression)
+func (h *Handler) GetResult(ctx context.Context, req *agentpb.GetResultRequest) (*agentpb.GetResultResponse, error) {
+	expr, err := h.service.GetExpressionByID(req.Id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return nil, status.Errorf(codes.NotFound, "expression not found: %v", err)
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"id": id})
-}
-
-func (h *Handler) GetExpressions(w http.ResponseWriter, r *http.Request) {
-	expressions := h.Service.GetExpressions()
-	json.NewEncoder(w).Encode(map[string]interface{}{"expressions": expressions})
-}
-
-func (h *Handler) GetExpressionByID(w http.ResponseWriter, r *http.Request) {
-	id := mux.Vars(r)["id"]
-	expression, found := h.Service.GetExpressionByID(id)
-	if !found {
-		http.Error(w, "Expression not found", http.StatusNotFound)
-		return
+	var result float32
+	if expr.Result != nil {
+		result = float32(*expr.Result)
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{"expression": expression})
-}
 
-func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
-	task, found := h.Service.GetNextTask()
-	if !found {
-		http.Error(w, "No available tasks", http.StatusNotFound)
-		return
+	var errorMessage string
+	if expr.Error != nil {
+		errorMessage = *expr.Error
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{"task": task})
+
+	return &agentpb.GetResultResponse{
+		Result: result,
+		Status: expr.Status,
+		Error:  errorMessage,  // передаем ошибку как строку, если она существует
+	}, nil
 }
 
-func (h *Handler) SubmitResult(w http.ResponseWriter, r *http.Request) {
-    var req struct {
-        ID     string  `json:"id"`
-        Result float64 `json:"result,omitempty"`
-        Error  string  `json:"error,omitempty"`
+func (h *Handler) AddExpression(ctx context.Context, req *agentpb.AddExpressionRequest) (*agentpb.AddExpressionResponse, error) {
+    id, err := h.service.AddExpression(uint(req.UserId), req.Expression)
+    if err != nil {
+        return nil, status.Errorf(codes.Internal, "failed to add expression: %v", err)
     }
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        http.Error(w, "Invalid request", http.StatusUnprocessableEntity)
-        return
+    return &agentpb.AddExpressionResponse{Id: id}, nil
+}
+
+func (h *Handler) GetExpressions(ctx context.Context, req *agentpb.GetExpressionsRequest) (*agentpb.GetExpressionsResponse, error) {
+	// Заглушка: в будущем можно реализовать метод в сервисе и репозитории
+	return &agentpb.GetExpressionsResponse{
+		Expressions: []*agentpb.Expression{}, // Пока возвращаем пустой список
+	}, nil
+}
+
+func (h *Handler) GetExpressionByID(ctx context.Context, req *agentpb.GetExpressionByIDRequest) (*agentpb.GetExpressionByIDResponse, error) {
+    expr, err := h.service.GetExpressionByID(req.Id)
+    if err != nil {
+        return nil, status.Errorf(codes.NotFound, "expression not found: %v", err)
     }
 
-    if req.Error != "" {
-        if err := h.Service.SubmitTaskError(req.ID, req.Error); err != nil {
-            http.Error(w, "Failed to submit error", http.StatusInternalServerError)
-            return
-        }
-    } else {
-        if err := h.Service.SubmitTaskResult(req.ID, req.Result); err != nil {
-            http.Error(w, "Failed to submit result", http.StatusInternalServerError)
-            return
-        }
+    var result float32
+    if expr.Result != nil {
+        result = float32(*expr.Result)
     }
 
-    w.WriteHeader(http.StatusOK)
+    return &agentpb.GetExpressionByIDResponse{
+        Expression: &agentpb.Expression{
+            Id:     expr.ID,
+            UserId: uint32(expr.UserID),  // используем uint32
+            Input:  expr.Input,
+            Result: result,
+            Status: expr.Status,
+            Error: func() string {
+                if expr.Error != nil {
+                    return *expr.Error
+                }
+                return ""  // возвращаем пустую строку, если ошибки нет
+            }(),
+        },
+    }, nil
+}
+
+func (h *Handler) FetchTask(ctx context.Context, req *agentpb.FetchTaskRequest) (*agentpb.FetchTaskResponse, error) {
+	task, err := h.service.GetNextTask()
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "no pending tasks: %v", err)
+	}
+	return &agentpb.FetchTaskResponse{
+		TaskId:    task.ID,
+		Arg1:      float32(task.Arg1),
+		Arg2:      float32(task.Arg2),
+		Operation: task.Operation,
+	}, nil
+}
+
+func (h *Handler) SendResult(ctx context.Context, req *agentpb.SendResultRequest) (*agentpb.SendResultResponse, error) {
+	if req.ErrorMessage != "" {
+		// Если ErrorMessage не пустой, сохраняем ошибку в базу
+		err := h.service.SubmitTaskError(req.TaskId, req.ErrorMessage)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to submit task error: %v", err)
+		}
+	} else {
+		// Если результат получен, сохраняем его
+		err := h.service.SubmitTaskResult(req.TaskId, float64(req.Result))
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to submit task result: %v", err)
+		}
+	}
+	return &agentpb.SendResultResponse{Success: true}, nil
 }

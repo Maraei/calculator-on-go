@@ -1,39 +1,84 @@
 package agent
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
+	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"time"
-	"errors"
+
+	"github.com/Maraei/calculator-on-go/api/api"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
-type Task struct {
-	ID            string  `json:"id"`
-	Arg1          float64 `json:"arg1"`
-	Arg2          float64 `json:"arg2"`
-	Operation     string  `json:"operation"`
-	OperationTime int     `json:"operation_time"`
+var token string
+
+func GetAuthServerAddress() string {
+	addr := os.Getenv("AUTH_SERVER_ADDRESS")
+	if addr == "" {
+		addr = "localhost:50051"
+	}
+	return addr
 }
 
-func Start(workerCount int) {
+func GetOrchestratorAddress() string {
+	addr := os.Getenv("ORCHESTRATOR_ADDRESS")
+	if addr == "" {
+		addr = "localhost:50052"
+	}
+	return addr
+}
+
+// Start запускает агента без авторизации
+func Start(workerCount int) error {
+	// Подключаемся к Orchestrator
+	taskConn, err := grpc.Dial(GetOrchestratorAddress(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("не удалось подключиться к оркестратору: %w", err)
+	}
+	defer taskConn.Close()
+
+	taskClient := api.NewTaskServiceClient(taskConn)
+
+	log.Println("Агент запущен и готов к выполнению задач без авторизации.") // 👈
+
 	for i := 0; i < workerCount; i++ {
-		go worker(i)
+		go worker(i, taskClient)
 	}
+
+	select {}
 }
 
-func worker(id int) {
-	serverURL := os.Getenv("ORCHESTRATOR_URL")
-	if serverURL == "" {
-		serverURL = "http://localhost"
-		log.Println("ORCHESTRATOR_URL не задан, используется значение по умолчанию:", serverURL)
+// login выполняет вход и получает токен
+func  Login(authClient api.AuthCalculatorServiceClient) error {
+	login := os.Getenv("AGENT_LOGIN")
+	password := os.Getenv("AGENT_PASSWORD")
+	if login == "" || password == "" {
+		return fmt.Errorf("AGENT_LOGIN или AGENT_PASSWORD не установлены")
 	}
-	taskEndpoint := serverURL + "/internal/task"
-	
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := authClient.Login(ctx, &api.AuthRequest{
+		Username: login,
+		Password: password,
+	})
+	if err != nil {
+		return fmt.Errorf("не удалось залогиниться: %w", err)
+	}
+
+	token = resp.Token
+	log.Println("Успешный вход агента, токен получен")
+	return nil
+}
+
+// worker обрабатывает задачи
+func worker(id int, client api.TaskServiceClient) {
 	for {
-		task, err := fetchTask(taskEndpoint)
+		task, err := FetchTask(client)
 		if err != nil {
 			log.Printf("[Worker %d] Ошибка при получении задачи: %v", id, err)
 			time.Sleep(2 * time.Second)
@@ -41,73 +86,70 @@ func worker(id int) {
 		}
 
 		if task == nil {
-			log.Printf("[Worker %d] Нет новых задач, ждем...", id)
+			log.Printf("[Worker %d] Нет задач, ждём...", id)
 			time.Sleep(2 * time.Second)
 			continue
 		}
 
-		log.Printf("[Worker %d] Получена задача: %v", id, task)
+		log.Printf("[Worker %d] Выполняем задачу: %f %s %f", id, task.Arg1, task.Operation, task.Arg2)
 
-		result, err := Calculate(task.Arg1, task.Arg2, task.Operation)
+		result, err := Calculate(float64(task.Arg1), float64(task.Arg2), task.Operation)
 		if err != nil {
-			if err := sendResult(taskEndpoint, task.ID, 0, err.Error()); err != nil {
+			log.Printf("[Worker %d] Ошибка вычислений: %v", id, err)
+			if err := SendResult(client, task.Id, 0, err.Error()); err != nil {
 				log.Printf("[Worker %d] Ошибка отправки ошибки: %v", id, err)
-			} else {
-				log.Printf("[Worker %d] Ошибка вычисления: %v", id, err)
 			}
 			continue
 		}
 
-		if err := sendResult(taskEndpoint, task.ID, result, ""); err != nil {
+		if err := SendResult(client, task.Id, result, ""); err != nil {
 			log.Printf("[Worker %d] Ошибка отправки результата: %v", id, err)
 		} else {
-			log.Printf("[Worker %d] Успешно отправлен результат: %v", id, result)
+			log.Printf("[Worker %d] Результат отправлен успешно: %f", id, result)
 		}
 	}
 }
 
-func fetchTask(url string) (*Task, error) {
-	resp, err := http.Get(url)
+// fetchTask получает задачу от сервера
+func FetchTask(client api.TaskServiceClient) (*api.Task, error) {
+	ctx := WithAuth(context.Background())
+	resp, err := client.FetchTask(ctx, &api.FetchTaskRequest{})
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
+	if resp.TaskId == "" {
 		return nil, nil
 	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("не удалось получить задачу: статус " + resp.Status)
-	}
-
-	var response struct {
-		Task Task `json:"task"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, err
-	}
-	return &response.Task, nil
+	return &api.Task{
+		Id:        resp.TaskId,
+		Arg1:      resp.Arg1,
+		Arg2:      resp.Arg2,
+		Operation: resp.Operation,
+	}, nil
 }
 
-func sendResult(url, taskID string, result float64, errMsg string) error {
-	payload := make(map[string]interface{})
-	payload["id"] = taskID
-	if errMsg != "" {
-		payload["error"] = errMsg
-	} else {
-		payload["result"] = result
-	}
-
-	jsonPayload, _ := json.Marshal(payload)
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
+// sendResult отправляет результат выполнения задачи
+func SendResult(client api.TaskServiceClient, taskID string, result float64, errMsg string) error {
+	ctx := WithAuth(context.Background())
+	resp, err := client.SendResult(ctx, &api.SendResultRequest{
+		TaskId:       taskID,
+		Result:       float32(result),
+		ErrorMessage: errMsg,
+	})
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return errors.New("не удалось отправить результат: статус " + resp.Status)
+	if !resp.Success {
+		return fmt.Errorf("сервер отклонил отправленный результат")
 	}
 	return nil
+}
+
+// withAuth добавляет токен в заголовок запроса, если он был получен
+func WithAuth(ctx context.Context) context.Context {
+	if token == "" {
+		log.Println("Токен не установлен. Для авторизации используйте функцию login.")
+		return ctx
+	}
+	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
 }

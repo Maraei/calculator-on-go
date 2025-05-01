@@ -2,7 +2,7 @@ package agent
 
 import (
 	"testing"
-	"os"
+
 )
 
 func TestCalculate(t *testing.T) {
@@ -34,22 +34,3 @@ func TestCalculate(t *testing.T) {
 	}
 }
 
-func TestGetOperationTime(t *testing.T) {
-	os.Setenv("TIME_ADDITION_MS", "3000")
-	defer os.Unsetenv("TIME_ADDITION_MS")
-
-	time1 := getOperationTime("TIME_ADDITION_MS", 2000)
-	if time1 != 3000 {
-		t.Errorf("Ожидали 3000, но получили %v", time1)
-	}
-
-	time2 := getOperationTime("UNKNOWN_ENV", 4000)
-	if time2 != 4000 {
-		t.Errorf("Ожидали 4000, но получили %v", time2)
-	}
-
-	time3 := getOperationTime("", 5000)
-	if time3 != 5000 {
-		t.Errorf("Ожидали 5000, но получили %v", time3)
-	}
-}
