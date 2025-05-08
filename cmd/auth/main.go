@@ -10,17 +10,13 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-func main() {
-	log.Println("=== НАЧАЛО MAIN ===")
-	
+func main() {	
 	store, err := auth.NewStore("users.db")
 	if err != nil {
 		log.Fatalf("Ошибка подключения к БД: %v", err)
 	}
-
-	// Опции для gRPC-сервера
 	serverOptions := []grpc.ServerOption{
-		grpc.MaxRecvMsgSize(50 * 1024 * 1024), // Увеличиваем лимит сообщений
+		grpc.MaxRecvMsgSize(50 * 1024 * 1024),
 	}
 
 	grpcServer := grpc.NewServer(serverOptions...)

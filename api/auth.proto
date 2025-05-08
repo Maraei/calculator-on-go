@@ -6,7 +6,6 @@ option go_package = "/api";
 
 import "google/api/annotations.proto";
 
-// ==== Сервисы оркестратора ====
 service OrchestratorService {
   rpc AddExpression(AddExpressionRequest) returns (AddExpressionResponse) {
     option (google.api.http) = {
@@ -45,13 +44,11 @@ service OrchestratorService {
   }
 }
 
-// ==== Сервис агента ====
 service TaskService {
   rpc FetchTask(FetchTaskRequest) returns (FetchTaskResponse);
   rpc SendResult(SendResultRequest) returns (SendResultResponse);
 }
 
-// ==== Сервис аутентификации ====
 service AuthCalculatorService {
   rpc Register(AuthRequest) returns (AuthResponse) {
     option (google.api.http) = {
@@ -74,8 +71,6 @@ service AuthCalculatorService {
     };
   }
 }
-
-// ==== Модели для оркестратора ====
 
 message GetResultRequest {
   string id = 1;
@@ -126,8 +121,6 @@ message SubmitResultResponse {
   bool success = 1;
 }
 
-// ==== Модели для агента ====
-
 message FetchTaskRequest {}
 
 message FetchTaskResponse {
@@ -141,13 +134,13 @@ message SendResultRequest {
   string task_id = 1;
   float result = 2;
   string error_message = 3;
+  string agent_id = 4;
 }
+
 
 message SendResultResponse {
   bool success = 1;
 }
-
-// ==== Модели для аутентификации ====
 
 message AuthRequest {
   string username = 1;
@@ -171,8 +164,6 @@ message ValidateResponse {
   string username = 2;
 }
 
-// ==== Общие модели ====
-
 message Expression {
   string id = 1;
   string input = 2;
@@ -189,4 +180,17 @@ message Task {
   float arg2 = 4;
   string operation = 5;
   string status = 6;
+}
+
+service AgentService {
+  rpc RegisterAgent(RegisterAgentRequest) returns (RegisterAgentResponse);
+}
+
+message RegisterAgentRequest {
+  string name = 1;
+  uint32 computing_power = 2;
+}
+
+message RegisterAgentResponse {
+  string agent_id = 1;
 }

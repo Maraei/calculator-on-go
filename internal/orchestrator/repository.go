@@ -2,10 +2,9 @@ package orchestrator
 
 import (
 	"errors"
-
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
-	"github.com/google/uuid"
 )
 
 type Repository struct {
@@ -35,7 +34,6 @@ func (r *Repository) GetExpressionByID(id string) (*Expression, error) {
 	return &expr, err
 }
 
-// Выражения
 func (r *Repository) CreateExpression(userID uint, input string) (*Expression, error) {
 	expr := &Expression{
 		ID:     uuid.New().String(),
@@ -59,7 +57,6 @@ func (r *Repository) UpdateExpressionError(expressionID string, errorMsg string)
 		Updates(map[string]interface{}{"status": "error", "error": errorMsg}).Error
 }
 
-// Задачи
 func (r *Repository) CreateTask(task *Task) error {
 	return r.db.Create(task).Error
 }
@@ -89,7 +86,6 @@ func (r *Repository) GetTasksByExpression(expressionID string) ([]Task, error) {
 	return tasks, err
 }
 
-// Пользователи
 func (r *Repository) CreateUser(username, password string) (*User, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {

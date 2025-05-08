@@ -29,7 +29,7 @@ func (s *Service) AddExpression(userID uint, input string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	tasks, err := s.taskManager.GenerateTasks(expr.ID, rpn)
 	if err != nil {
 		return "", err
@@ -39,6 +39,7 @@ func (s *Service) AddExpression(userID uint, input string) (string, error) {
 			return "", err
 		}
 	}
+
 	return expr.ID, nil
 }
 
@@ -60,7 +61,7 @@ func (s *Service) SubmitTaskResult(taskID string, result float64) error {
 		return err
 	}
 
-	return s.checkExpressionCompletion(task.ExpressionID)
+	return s.CheckExpressionCompletion(task.ExpressionID)
 }
 
 func (s *Service) SubmitTaskError(taskID string, errorMsg string) error {
@@ -84,29 +85,32 @@ func (s *Service) GetExpressionByID(id string) (*Expression, error) {
 	return s.repo.GetExpressionByID(id)
 }
 
-func (s *Service) checkExpressionCompletion(expressionID string) error {
+func (s *Service) CheckExpressionCompletion(expressionID string) error {
 	tasks, err := s.repo.GetTasksByExpression(expressionID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get tasks: %w", err)
 	}
 
-	allCompleted := true
-	var total float64
 	for _, task := range tasks {
-		if task.Status == "error" {
-			return s.repo.UpdateExpressionError(expressionID, *task.Error)
-		}
 		if task.Status != "completed" {
-			allCompleted = false
-		}
-		if task.Result != nil {
-			total += *task.Result
+			return nil
 		}
 	}
 
-	if allCompleted {
-		return s.repo.UpdateExpressionResult(expressionID, total)
+	expr, err := s.repo.GetExpressionByID(expressionID)
+	if err != nil {
+		return fmt.Errorf("failed to get expression: %w", err)
 	}
 
-	return nil
+	rpnTokens, err := InfixToRPN(expr.Input)
+	if err != nil {
+		return s.repo.UpdateExpressionError(expressionID, fmt.Sprintf("failed to convert to RPN: %v", err))
+	}
+
+	result, err := EvaluateRPN(rpnTokens)
+	if err != nil {
+		return s.repo.UpdateExpressionError(expressionID, fmt.Sprintf("failed to evaluate RPN: %v", err))
+	}
+
+	return s.repo.UpdateExpressionResult(expressionID, result)
 }

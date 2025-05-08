@@ -10,12 +10,12 @@ import (
 )
 
 type Expression struct {
-    ID        string    `gorm:"primaryKey"`  // id
-    UserID    uint32    `json:"user_id"`     // user_id (с нижним подчеркиванием)
-    Input     string    `json:"input"`       // input
-    Status    string    `json:"status"`      // status
-    Result    *float64 `json:"result"`      // result
-    Error     *string   `json:"error"`       // error
+    ID        string    `gorm:"primaryKey"`
+    UserID    uint32    `json:"user_id"` 
+    Input     string    `json:"input"` 
+    Status    string    `json:"status"`
+    Result    *float64 `json:"result"`
+    Error     *string   `json:"error"`
     CreatedAt time.Time `json:"created_at"`
     UpdatedAt time.Time `json:"updated_at"`
 }
@@ -26,7 +26,7 @@ type Task struct {
 	Arg1         float64
 	Arg2         float64
 	Operation    string
-	Status       string // pending, completed, error
+	Status       string
 	Result       *float64
 	Error        *string
 	CreatedAt    time.Time
@@ -71,7 +71,7 @@ func (h *Handler) GetResult(ctx context.Context, req *agentpb.GetResultRequest) 
 	return &agentpb.GetResultResponse{
 		Result: result,
 		Status: expr.Status,
-		Error:  errorMessage,  // передаем ошибку как строку, если она существует
+		Error:  errorMessage,
 	}, nil
 }
 
@@ -84,9 +84,8 @@ func (h *Handler) AddExpression(ctx context.Context, req *agentpb.AddExpressionR
 }
 
 func (h *Handler) GetExpressions(ctx context.Context, req *agentpb.GetExpressionsRequest) (*agentpb.GetExpressionsResponse, error) {
-	// Заглушка: в будущем можно реализовать метод в сервисе и репозитории
 	return &agentpb.GetExpressionsResponse{
-		Expressions: []*agentpb.Expression{}, // Пока возвращаем пустой список
+		Expressions: []*agentpb.Expression{},
 	}, nil
 }
 
@@ -104,7 +103,7 @@ func (h *Handler) GetExpressionByID(ctx context.Context, req *agentpb.GetExpress
     return &agentpb.GetExpressionByIDResponse{
         Expression: &agentpb.Expression{
             Id:     expr.ID,
-            UserId: uint32(expr.UserID),  // используем uint32
+            UserId: uint32(expr.UserID),
             Input:  expr.Input,
             Result: result,
             Status: expr.Status,
@@ -112,7 +111,7 @@ func (h *Handler) GetExpressionByID(ctx context.Context, req *agentpb.GetExpress
                 if expr.Error != nil {
                     return *expr.Error
                 }
-                return ""  // возвращаем пустую строку, если ошибки нет
+                return ""
             }(),
         },
     }, nil
@@ -133,17 +132,21 @@ func (h *Handler) FetchTask(ctx context.Context, req *agentpb.FetchTaskRequest) 
 
 func (h *Handler) SendResult(ctx context.Context, req *agentpb.SendResultRequest) (*agentpb.SendResultResponse, error) {
 	if req.ErrorMessage != "" {
-		// Если ErrorMessage не пустой, сохраняем ошибку в базу
 		err := h.service.SubmitTaskError(req.TaskId, req.ErrorMessage)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to submit task error: %v", err)
 		}
 	} else {
-		// Если результат получен, сохраняем его
 		err := h.service.SubmitTaskResult(req.TaskId, float64(req.Result))
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to submit task result: %v", err)
 		}
 	}
 	return &agentpb.SendResultResponse{Success: true}, nil
+}
+
+func (r *Repository) GetPendingTasks(ctx context.Context) ([]Task, error) {
+	var tasks []Task
+	err := r.db.WithContext(ctx).Where("status = ?", "pending").Find(&tasks).Error
+	return tasks, err
 }

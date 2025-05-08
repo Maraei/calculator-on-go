@@ -8,17 +8,28 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/Maraei/calculator-on-go/internal/orchestrator"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
+
 func TestGetTask(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("Ошибка при подключении к базе данных: %v", err)
+	}
+
+	if err := orchestrator.Migrate(db); err != nil {
+		t.Fatalf("Ошибка при миграции базы данных: %v", err)
+	}
+
 	taskManager := orchestrator.NewTaskManager()
 
-	taskManager.GenerateTasks("expr_1", "2 + 2")
-
-	service := orchestrator.NewService(taskManager)
-	handler := orchestrator.NewHandler(service)
-
-	req, err := http.NewRequest("GET", "/internal/task", nil)
+	_, err = taskManager.GenerateTasks("expr_1", "2 + 2")
+	if err != nil {
+		t.Fatalf("Ошибка при генерации задачи: %v", err)
+	}
+	req, err := http.NewRequest("GET", "/internal/task/expr_1", nil)
 	if err != nil {
 		t.Fatalf("Ошибка при создании запроса: %v", err)
 	}
@@ -26,7 +37,6 @@ func TestGetTask(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	router := mux.NewRouter()
-	router.HandleFunc("/internal/task", handler.GetTask).Methods("GET")
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {

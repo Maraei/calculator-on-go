@@ -31,9 +31,7 @@ func GetOrchestratorAddress() string {
 	return addr
 }
 
-// Start запускает агента без авторизации
 func Start(workerCount int) error {
-	// Подключаемся к Orchestrator
 	taskConn, err := grpc.Dial(GetOrchestratorAddress(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("не удалось подключиться к оркестратору: %w", err)
@@ -42,8 +40,6 @@ func Start(workerCount int) error {
 
 	taskClient := api.NewTaskServiceClient(taskConn)
 
-	log.Println("Агент запущен и готов к выполнению задач без авторизации.") // 👈
-
 	for i := 0; i < workerCount; i++ {
 		go worker(i, taskClient)
 	}
@@ -51,8 +47,7 @@ func Start(workerCount int) error {
 	select {}
 }
 
-// login выполняет вход и получает токен
-func  Login(authClient api.AuthCalculatorServiceClient) error {
+func Login(authClient api.AuthCalculatorServiceClient) error {
 	login := os.Getenv("AGENT_LOGIN")
 	password := os.Getenv("AGENT_PASSWORD")
 	if login == "" || password == "" {
@@ -75,7 +70,6 @@ func  Login(authClient api.AuthCalculatorServiceClient) error {
 	return nil
 }
 
-// worker обрабатывает задачи
 func worker(id int, client api.TaskServiceClient) {
 	for {
 		task, err := FetchTask(client)
@@ -110,7 +104,6 @@ func worker(id int, client api.TaskServiceClient) {
 	}
 }
 
-// fetchTask получает задачу от сервера
 func FetchTask(client api.TaskServiceClient) (*api.Task, error) {
 	ctx := WithAuth(context.Background())
 	resp, err := client.FetchTask(ctx, &api.FetchTaskRequest{})
@@ -128,7 +121,6 @@ func FetchTask(client api.TaskServiceClient) (*api.Task, error) {
 	}, nil
 }
 
-// sendResult отправляет результат выполнения задачи
 func SendResult(client api.TaskServiceClient, taskID string, result float64, errMsg string) error {
 	ctx := WithAuth(context.Background())
 	resp, err := client.SendResult(ctx, &api.SendResultRequest{
@@ -145,7 +137,6 @@ func SendResult(client api.TaskServiceClient, taskID string, result float64, err
 	return nil
 }
 
-// withAuth добавляет токен в заголовок запроса, если он был получен
 func WithAuth(ctx context.Context) context.Context {
 	if token == "" {
 		log.Println("Токен не установлен. Для авторизации используйте функцию login.")

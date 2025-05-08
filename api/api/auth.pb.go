@@ -683,6 +683,7 @@ type SendResultRequest struct {
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	Result        float32                `protobuf:"fixed32,2,opt,name=result,proto3" json:"result,omitempty"`
 	ErrorMessage  string                 `protobuf:"bytes,3,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	AgentId       string                 `protobuf:"bytes,4,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -734,6 +735,13 @@ func (x *SendResultRequest) GetResult() float32 {
 func (x *SendResultRequest) GetErrorMessage() string {
 	if x != nil {
 		return x.ErrorMessage
+	}
+	return ""
+}
+
+func (x *SendResultRequest) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
 	}
 	return ""
 }
@@ -1186,6 +1194,102 @@ func (x *Task) GetStatus() string {
 	return ""
 }
 
+type RegisterAgentRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Name           string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	ComputingPower uint32                 `protobuf:"varint,2,opt,name=computing_power,json=computingPower,proto3" json:"computing_power,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *RegisterAgentRequest) Reset() {
+	*x = RegisterAgentRequest{}
+	mi := &file_auth_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterAgentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterAgentRequest) ProtoMessage() {}
+
+func (x *RegisterAgentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_auth_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterAgentRequest.ProtoReflect.Descriptor instead.
+func (*RegisterAgentRequest) Descriptor() ([]byte, []int) {
+	return file_auth_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *RegisterAgentRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RegisterAgentRequest) GetComputingPower() uint32 {
+	if x != nil {
+		return x.ComputingPower
+	}
+	return 0
+}
+
+type RegisterAgentResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterAgentResponse) Reset() {
+	*x = RegisterAgentResponse{}
+	mi := &file_auth_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterAgentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterAgentResponse) ProtoMessage() {}
+
+func (x *RegisterAgentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_auth_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterAgentResponse.ProtoReflect.Descriptor instead.
+func (*RegisterAgentResponse) Descriptor() ([]byte, []int) {
+	return file_auth_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *RegisterAgentResponse) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
 var File_auth_proto protoreflect.FileDescriptor
 
 const file_auth_proto_rawDesc = "" +
@@ -1229,11 +1333,12 @@ const file_auth_proto_rawDesc = "" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x12\n" +
 	"\x04arg1\x18\x02 \x01(\x02R\x04arg1\x12\x12\n" +
 	"\x04arg2\x18\x03 \x01(\x02R\x04arg2\x12\x1c\n" +
-	"\toperation\x18\x04 \x01(\tR\toperation\"i\n" +
+	"\toperation\x18\x04 \x01(\tR\toperation\"\x84\x01\n" +
 	"\x11SendResultRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x16\n" +
 	"\x06result\x18\x02 \x01(\x02R\x06result\x12#\n" +
-	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\".\n" +
+	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\x12\x19\n" +
+	"\bagent_id\x18\x04 \x01(\tR\aagentId\".\n" +
 	"\x12SendResultResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\"E\n" +
 	"\vAuthRequest\x12\x1a\n" +
@@ -1262,7 +1367,12 @@ const file_auth_proto_rawDesc = "" +
 	"\x04arg1\x18\x03 \x01(\x02R\x04arg1\x12\x12\n" +
 	"\x04arg2\x18\x04 \x01(\x02R\x04arg2\x12\x1c\n" +
 	"\toperation\x18\x05 \x01(\tR\toperation\x12\x16\n" +
-	"\x06status\x18\x06 \x01(\tR\x06status2\xb3\x05\n" +
+	"\x06status\x18\x06 \x01(\tR\x06status\"S\n" +
+	"\x14RegisterAgentRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12'\n" +
+	"\x0fcomputing_power\x18\x02 \x01(\rR\x0ecomputingPower\"2\n" +
+	"\x15RegisterAgentResponse\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId2\xb3\x05\n" +
 	"\x13OrchestratorService\x12r\n" +
 	"\rAddExpression\x12 .calculator.AddExpressionRequest\x1a!.calculator.AddExpressionResponse\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/api/v1/calculate\x12e\n" +
 	"\tGetResult\x12\x1c.calculator.GetResultRequest\x1a\x1d.calculator.GetResultResponse\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/api/v1/result/{id}\x12t\n" +
@@ -1277,7 +1387,9 @@ const file_auth_proto_rawDesc = "" +
 	"\x15AuthCalculatorService\x12V\n" +
 	"\bRegister\x12\x17.calculator.AuthRequest\x1a\x18.calculator.AuthResponse\"\x17\x82\xd3\xe4\x93\x02\x11:\x01*\"\f/v1/register\x12Q\n" +
 	"\x05Login\x12\x17.calculator.AuthRequest\x1a\x19.calculator.TokenResponse\"\x14\x82\xd3\xe4\x93\x02\x0e:\x01*\"\t/v1/login\x12[\n" +
-	"\bValidate\x12\x18.calculator.TokenRequest\x1a\x1c.calculator.ValidateResponse\"\x17\x82\xd3\xe4\x93\x02\x11:\x01*\"\f/v1/validateB\x06Z\x04/apib\x06proto3"
+	"\bValidate\x12\x18.calculator.TokenRequest\x1a\x1c.calculator.ValidateResponse\"\x17\x82\xd3\xe4\x93\x02\x11:\x01*\"\f/v1/validate2d\n" +
+	"\fAgentService\x12T\n" +
+	"\rRegisterAgent\x12 .calculator.RegisterAgentRequest\x1a!.calculator.RegisterAgentResponseB\x06Z\x04/apib\x06proto3"
 
 var (
 	file_auth_proto_rawDescOnce sync.Once
@@ -1291,7 +1403,7 @@ func file_auth_proto_rawDescGZIP() []byte {
 	return file_auth_proto_rawDescData
 }
 
-var file_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_auth_proto_goTypes = []any{
 	(*GetResultRequest)(nil),          // 0: calculator.GetResultRequest
 	(*GetResultResponse)(nil),         // 1: calculator.GetResultResponse
@@ -1316,6 +1428,8 @@ var file_auth_proto_goTypes = []any{
 	(*ValidateResponse)(nil),          // 20: calculator.ValidateResponse
 	(*Expression)(nil),                // 21: calculator.Expression
 	(*Task)(nil),                      // 22: calculator.Task
+	(*RegisterAgentRequest)(nil),      // 23: calculator.RegisterAgentRequest
+	(*RegisterAgentResponse)(nil),     // 24: calculator.RegisterAgentResponse
 }
 var file_auth_proto_depIdxs = []int32{
 	21, // 0: calculator.GetExpressionsResponse.expressions:type_name -> calculator.Expression
@@ -1332,19 +1446,21 @@ var file_auth_proto_depIdxs = []int32{
 	16, // 11: calculator.AuthCalculatorService.Register:input_type -> calculator.AuthRequest
 	16, // 12: calculator.AuthCalculatorService.Login:input_type -> calculator.AuthRequest
 	19, // 13: calculator.AuthCalculatorService.Validate:input_type -> calculator.TokenRequest
-	3,  // 14: calculator.OrchestratorService.AddExpression:output_type -> calculator.AddExpressionResponse
-	1,  // 15: calculator.OrchestratorService.GetResult:output_type -> calculator.GetResultResponse
-	5,  // 16: calculator.OrchestratorService.GetExpressions:output_type -> calculator.GetExpressionsResponse
-	7,  // 17: calculator.OrchestratorService.GetExpressionByID:output_type -> calculator.GetExpressionByIDResponse
-	9,  // 18: calculator.OrchestratorService.GetTask:output_type -> calculator.GetTaskResponse
-	11, // 19: calculator.OrchestratorService.SubmitResult:output_type -> calculator.SubmitResultResponse
-	13, // 20: calculator.TaskService.FetchTask:output_type -> calculator.FetchTaskResponse
-	15, // 21: calculator.TaskService.SendResult:output_type -> calculator.SendResultResponse
-	17, // 22: calculator.AuthCalculatorService.Register:output_type -> calculator.AuthResponse
-	18, // 23: calculator.AuthCalculatorService.Login:output_type -> calculator.TokenResponse
-	20, // 24: calculator.AuthCalculatorService.Validate:output_type -> calculator.ValidateResponse
-	14, // [14:25] is the sub-list for method output_type
-	3,  // [3:14] is the sub-list for method input_type
+	23, // 14: calculator.AgentService.RegisterAgent:input_type -> calculator.RegisterAgentRequest
+	3,  // 15: calculator.OrchestratorService.AddExpression:output_type -> calculator.AddExpressionResponse
+	1,  // 16: calculator.OrchestratorService.GetResult:output_type -> calculator.GetResultResponse
+	5,  // 17: calculator.OrchestratorService.GetExpressions:output_type -> calculator.GetExpressionsResponse
+	7,  // 18: calculator.OrchestratorService.GetExpressionByID:output_type -> calculator.GetExpressionByIDResponse
+	9,  // 19: calculator.OrchestratorService.GetTask:output_type -> calculator.GetTaskResponse
+	11, // 20: calculator.OrchestratorService.SubmitResult:output_type -> calculator.SubmitResultResponse
+	13, // 21: calculator.TaskService.FetchTask:output_type -> calculator.FetchTaskResponse
+	15, // 22: calculator.TaskService.SendResult:output_type -> calculator.SendResultResponse
+	17, // 23: calculator.AuthCalculatorService.Register:output_type -> calculator.AuthResponse
+	18, // 24: calculator.AuthCalculatorService.Login:output_type -> calculator.TokenResponse
+	20, // 25: calculator.AuthCalculatorService.Validate:output_type -> calculator.ValidateResponse
+	24, // 26: calculator.AgentService.RegisterAgent:output_type -> calculator.RegisterAgentResponse
+	15, // [15:27] is the sub-list for method output_type
+	3,  // [3:15] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
@@ -1361,9 +1477,9 @@ func file_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_auth_proto_rawDesc), len(file_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   25,
 			NumExtensions: 0,
-			NumServices:   3,
+			NumServices:   4,
 		},
 		GoTypes:           file_auth_proto_goTypes,
 		DependencyIndexes: file_auth_proto_depIdxs,

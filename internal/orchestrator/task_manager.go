@@ -13,6 +13,9 @@ type TaskManager struct{}
 func NewTaskManager() *TaskManager {
 	return &TaskManager{}
 }
+type GetTaskRequest struct {
+    TaskID string `json:"task_id"`
+}
 
 func (tm *TaskManager) GenerateTasks(expressionID, expression string) ([]*Task, error) {
 	tokens := strings.Fields(expression)
@@ -36,7 +39,7 @@ func (tm *TaskManager) GenerateTasks(expressionID, expression string) ([]*Task, 
 				Operation:    token,
 				Status:       "pending",
 			}
-			stack = append(stack, "0") // временная замена результата
+			stack = append(stack, "0")
 			tasks = append(tasks, task)
 		} else {
 			stack = append(stack, token)

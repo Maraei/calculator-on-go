@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -17,6 +18,45 @@ var precedence = map[string]int{
 func isOperatorToken(token string) bool {
 	_, ok := precedence[token]
 	return ok
+}
+
+func isNumber(token string) bool {
+	_, err := strconv.ParseFloat(token, 64)
+	return err == nil
+}
+
+func tokenize(expr string) ([]string, error) {
+	var tokens []string
+	var current strings.Builder
+
+	for _, r := range expr {
+		switch {
+		case unicode.IsDigit(r) || r == '.':
+			current.WriteRune(r)
+
+		case unicode.IsSpace(r):
+			if current.Len() > 0 {
+				tokens = append(tokens, current.String())
+				current.Reset()
+			}
+
+		case strings.ContainsRune("+-*/()", r):
+			if current.Len() > 0 {
+				tokens = append(tokens, current.String())
+				current.Reset()
+			}
+			tokens = append(tokens, string(r))
+
+		default:
+			return nil, fmt.Errorf("invalid character: %c", r)
+		}
+	}
+
+	if current.Len() > 0 {
+		tokens = append(tokens, current.String())
+	}
+
+	return tokens, nil
 }
 
 func InfixToRPN(expr string) ([]string, error) {
@@ -80,42 +120,46 @@ func InfixToRPN(expr string) ([]string, error) {
 	return output, nil
 }
 
-func isNumber(token string) bool {
-	_, err := strconv.ParseFloat(token, 64)
-	return err == nil
-}
+func EvaluateRPN(tokens []string) (float64, error) {
+	var stack []float64
 
-// tokenize превращает строку в срез токенов: "2 + 3 * (4 - 1)" → ["2", "+", "3", "*", "(", "4", "-", "1", ")"]
-func tokenize(expr string) ([]string, error) {
-	var tokens []string
-	var current strings.Builder
-
-	for _, r := range expr {
-		switch {
-		case unicode.IsDigit(r) || r == '.':
-			current.WriteRune(r)
-
-		case unicode.IsSpace(r):
-			if current.Len() > 0 {
-				tokens = append(tokens, current.String())
-				current.Reset()
+	for _, token := range tokens {
+		switch token {
+		case "+", "-", "*", "/":
+			if len(stack) < 2 {
+				return 0, errors.New("invalid expression")
 			}
+			b, a := stack[len(stack)-1], stack[len(stack)-2]
+			stack = stack[:len(stack)-2]
 
-		case strings.ContainsRune("+-*/()", r):
-			if current.Len() > 0 {
-				tokens = append(tokens, current.String())
-				current.Reset()
+			var res float64
+			switch token {
+			case "+":
+				res = a + b
+			case "-":
+				res = a - b
+			case "*":
+				res = a * b
+			case "/":
+				if b == 0 {
+					return 0, errors.New("division by zero")
+				}
+				res = a / b
 			}
-			tokens = append(tokens, string(r))
+			stack = append(stack, res)
 
 		default:
-			return nil, fmt.Errorf("invalid character: %c", r)
+			val, err := strconv.ParseFloat(token, 64)
+			if err != nil {
+				return 0, err
+			}
+			stack = append(stack, val)
 		}
 	}
 
-	if current.Len() > 0 {
-		tokens = append(tokens, current.String())
+	if len(stack) != 1 {
+		return 0, errors.New("invalid expression")
 	}
 
-	return tokens, nil
+	return stack[0], nil
 }

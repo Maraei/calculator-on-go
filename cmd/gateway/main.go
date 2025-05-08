@@ -16,12 +16,10 @@ func main() {
 	mux := runtime.NewServeMux()
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
-	// Регистрируем Auth-сервис
-	if err := api.RegisterAuthCalculatorServiceHandlerFromEndpoint(ctx, mux, "localhost:50052", opts); err != nil {
+	if err := api.RegisterAuthCalculatorServiceHandlerFromEndpoint(ctx, mux, "localhost:50051", opts); err != nil {
 		log.Fatalf("Ошибка регистрации Auth-сервиса: %v", err)
 	}
 
-	// Регистрируем Orchestrator-сервис
 	if err := api.RegisterOrchestratorServiceHandlerFromEndpoint(ctx, mux, "localhost:50052", opts); err != nil {
 		log.Fatalf("Ошибка регистрации Orchestrator-сервиса: %v", err)
 	}

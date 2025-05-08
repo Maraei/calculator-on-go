@@ -22,7 +22,6 @@ type User struct {
 }
 
 func (s *Store) RegisterUser(user User) error {
-	// Проверка, существует ли уже пользователь с таким логином
 	var existingUser User
 	err := s.db.QueryRow("SELECT id, username FROM users WHERE username = ?", user.Username).Scan(&existingUser.ID, &existingUser.Username)
 	if err != nil && err != sql.ErrNoRows {
@@ -32,7 +31,6 @@ func (s *Store) RegisterUser(user User) error {
 		return errors.New("user already exists")
 	}
 
-	// Создание нового пользователя
 	_, err = s.db.Exec("INSERT INTO users (username, password) VALUES (?, ?)", user.Username, user.Password)
 	if err != nil {
 		return fmt.Errorf("error inserting user: %v", err)
@@ -42,25 +40,21 @@ func (s *Store) RegisterUser(user User) error {
 }
 
 func NewStore(path string) (*Store, error) {
-	// Проверим, существует ли база
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		log.Printf("База данных не найдена по пути '%s'. Будет создан новый файл.", path)
 	} else {
 		log.Printf("База данных найдена по пути '%s'.", path)
 	}
 
-	// Открываем подключение
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка открытия базы данных: %w", err)
 	}
 
-	// Проверим подключение
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("ошибка подключения к базе данных: %w", err)
 	}
 
-	// Создание таблицы users
 	createTable := `
 	CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +67,6 @@ func NewStore(path string) (*Store, error) {
 	}
 	log.Println("Таблица users создана или уже существует.")
 
-	// Для отладки: вывод структуры базы
 	rows, err := db.Query("PRAGMA table_info(users);")
 	if err != nil {
 		return nil, fmt.Errorf("ошибка чтения структуры таблицы users: %w", err)
