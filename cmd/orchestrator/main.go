@@ -31,7 +31,7 @@ func main() {
 	handler := orchestrator.NewHandler(service)
 
 
-	store, err := auth.NewStore("auth.db")
+	store, err := auth.NewStore("users.db")
 	if err != nil {
 		log.Fatalf("Не удалось создать хранилище: %v", err)
 	}
@@ -42,7 +42,7 @@ func main() {
 		log.Fatalf("Не удалось запустить сервер: %v", err)
 	}
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(auth.AuthMiddleware()),
+		grpc.UnaryInterceptor(auth.AuthMiddleware(HmacSampleSecret)),
 	)
 	agentpb.RegisterTaskServiceServer(grpcServer, handler)
 	agentpb.RegisterAuthCalculatorServiceServer(grpcServer, authService)

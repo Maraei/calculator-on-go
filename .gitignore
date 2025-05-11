@@ -1,0 +1,15 @@
+*.db
+
+.env
+
+*.exe
+*.out
+*.test
+
+/tmp/
+*.log
+
+--*
+-H
+-d
+localhost*

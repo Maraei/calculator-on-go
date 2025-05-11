@@ -36,7 +36,7 @@ go run ./cmd/orchestrator/main.go
 ### 3. Запуск агента:
 
 ```bash
-go run .\cmd\agent\main.go
+go run ./cmd/agent/main.go
 ```
 ### 3. Запуск Auth:
 

@@ -1,10 +1,9 @@
 package auth
 
 import (
+	"fmt"
 	"log"
 	"time"
-	"fmt"
-
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -19,7 +18,7 @@ func GenerateToken(id int) (string, error) {
 		"nbf": now.Unix(),
 		"exp": now.Add(1 * time.Hour).Unix(),
 		"iat": now.Unix(),
-	})	
+	})
 
 	tokenString, err := token.SignedString([]byte(HmacSampleSecret))
 	if err != nil {
@@ -51,13 +50,16 @@ func ValidateToken(tokenString string) (int, error) {
 		return 0, fmt.Errorf("invalid token claims")
 	}
 
-	userIDFloat, ok := claims["id"].(float64)
+	log.Printf("Claims: %+v", claims)
+
+	id, ok := claims["id"].(float64)
 	if !ok {
 		log.Println("invalid user ID type in token")
 		return 0, fmt.Errorf("invalid user ID type")
 	}
 
-	userID := int(userIDFloat)
+	userID := int(id)
+
 	if userID <= 0 {
 		log.Println("user ID is zero or negative")
 		return 0, fmt.Errorf("invalid user ID in token")

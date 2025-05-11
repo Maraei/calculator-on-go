@@ -14,6 +14,27 @@ import (
 )
 
 var token string
+var taskClient api.TaskServiceClient
+
+func StartClient() error {
+	conn, err := grpc.NewClient(GetOrchestratorAddress(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("не удалось подключиться к оркестратору: %w", err)
+	}
+	taskClient = api.NewTaskServiceClient(conn)
+	return nil
+}
+
+func StartWorkers(workerCount int) {
+	for i := 0; i < workerCount; i++ {
+		go worker(i, taskClient)
+	}
+	log.Printf("Запущено %d воркеров", workerCount)
+}
+
+func IsAuthorized() bool {
+	return token != ""
+}
 
 func GetAuthServerAddress() string {
 	addr := os.Getenv("AUTH_SERVER_ADDRESS")
@@ -32,7 +53,7 @@ func GetOrchestratorAddress() string {
 }
 
 func Start(workerCount int) error {
-	taskConn, err := grpc.Dial(GetOrchestratorAddress(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	taskConn, err := grpc.NewClient(GetOrchestratorAddress(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("не удалось подключиться к оркестратору: %w", err)
 	}
@@ -111,6 +132,7 @@ func FetchTask(client api.TaskServiceClient) (*api.Task, error) {
 		return nil, err
 	}
 	if resp.TaskId == "" {
+		log.Println("Задача не найдена или завершена")
 		return nil, nil
 	}
 	return &api.Task{

@@ -3,7 +3,6 @@ package auth
 import (
 	"database/sql"
 	"fmt"
-	"errors"
 	"log"
 	"os"
 
@@ -21,19 +20,15 @@ type User struct {
 	Password string `json:"password"`
 }
 
-func (s *Store) RegisterUser(user User) error {
-	var existingUser User
-	err := s.db.QueryRow("SELECT id, username FROM users WHERE username = ?", user.Username).Scan(&existingUser.ID, &existingUser.Username)
-	if err != nil && err != sql.ErrNoRows {
-		return fmt.Errorf("error checking existing user: %v", err)
-	}
-	if existingUser.Username != "" {
-		return errors.New("user already exists")
+func (s *Store) CreateUser(username, password string) error {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
 	}
 
-	_, err = s.db.Exec("INSERT INTO users (username, password) VALUES (?, ?)", user.Username, user.Password)
+	_, err = s.db.Exec("INSERT INTO users (username, password) VALUES (?, ?)", username, string(hashedPassword))
 	if err != nil {
-		return fmt.Errorf("error inserting user: %v", err)
+		return fmt.Errorf("failed to create user: %w", err)
 	}
 
 	return nil
@@ -88,20 +83,6 @@ func NewStore(path string) (*Store, error) {
 	}
 
 	return &Store{db: db}, nil
-}
-
-func (s *Store) CreateUser(username, password string) error {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return err
-	}
-
-	_, err = s.db.Exec("INSERT INTO users (username, password) VALUES (?, ?)", username, string(hashedPassword))
-	if err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
-	}
-
-	return nil
 }
 
 func (s *Store) ValidateUser(username, password string) error {

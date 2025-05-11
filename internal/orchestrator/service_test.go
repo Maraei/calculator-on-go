@@ -44,7 +44,6 @@ func TestAddExpressionAndGetResult(t *testing.T) {
 	assert.Equal(t, "2 + 3", expr.Input)
 
 	tasks, err := repo.GetPendingTasks(ctx)
-
 	assert.NoError(t, err)
 	assert.Len(t, tasks, 1)
 
@@ -52,7 +51,7 @@ func TestAddExpressionAndGetResult(t *testing.T) {
 	_, err = handler.SendResult(ctx, &agentpb.SendResultRequest{
 		TaskId: task.ID,
 		Result: 5.0,
-	})	
+	})
 	assert.NoError(t, err)
 
 	time.Sleep(time.Millisecond * 50)
