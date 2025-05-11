@@ -132,11 +132,25 @@ curl -X GET http://localhost:8080/api/v1/result/10c77400-cf81-48f9-ac58-e3c65740
 curl -X POST http://localhost:8080/api/v1/calculate \
 -H "Content-Type: application/json" \
 -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDY3MDk0MjUsImlhdCI6MTc0NjcwODgyNSwiaWQiOjE5LCJuYmYiOjE3NDY3MDg4MjV9.07TqVAmoR_DDg2IBXYq2EtR8mxfcxHMbUW9M5KlToxg" \
--d '{"expression": "2 + 2 * 3"}'
+-d '{"expression": "2 / 0"}'
 
 # Ответ(422):
 {
-  "error": "деление на ноль"
+  "error": "division by zero"
+}
+```
+
+### 3. Некорректное выражение
+```bash
+# Отправка выражения
+curl -X POST http://localhost:8080/api/v1/calculate \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDY3MDk0MjUsImlhdCI6MTc0NjcwODgyNSwiaWQiOjE5LCJuYmYiOjE3NDY3MDg4MjV9.07TqVAmoR_DDg2IBXYq2EtR8mxfcxHMbUW9M5KlToxg" \
+-d '{"expression": "2 + "}'
+
+# Ответ(422):
+{
+  "error": "Invalid expression"
 }
 ```
 
@@ -181,6 +195,7 @@ calculator-on-go
 │  │  ├─ auth_integration_test.go               
 ├─ .evn
 ├─ agent
+├─ .gitignore
 ├─ go.mod
 ├─ go.sum                            
 ├─ README.md
